@@ -25,13 +25,13 @@ BACK-END
 
 → [Voltar ao topo](#topo)
 
-<!-- <span id="estrutura">
+<span id="estrutura">
 
 ## :scroll: Descrição da Estrutura
 
 → [Voltar ao topo](#topo)
 
-<!-- <span id="requisitos">
+<span id="requisitos">
 
 ## :clipboard: Requisitos para a Execução
     
@@ -42,17 +42,18 @@ BACK-END
 ## :gear: Instruções para Executar
 
 → [Voltar ao topo](#topo)
-<!-- <span id="execucao">
+
+<span id="execucao">
 
 ## :gear: Instruções para Executar
 
 → [Voltar ao topo](#topo)
 
-<!-- <span id="teste">
+<span id="teste">
 
 ## 🧪 Instruções para Testar
 
-→ [Voltar ao topo](#topo) ->
+→ [Voltar ao topo](#topo) -->
 
 <span id="estrategia">
 
