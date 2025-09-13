@@ -7,25 +7,28 @@ Pontos obrigatórios a contemplar no texto (sem numerar na saída): A quantidade
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch
 
-import time
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print("Using device:", device)
+
+if device.type == "cuda":
+    model = AutoModelForCausalLM.from_pretrained(
+        "google/gemma-2-2b-it",
+        device_map="auto",
+        dtype=torch.bfloat16,
+    )
+else:
+    model = AutoModelForCausalLM.from_pretrained(
+        "google/gemma-2-2b-it",
+        low_cpu_mem_usage=True,
+    )
+    model.to(device, dtype=torch.float32)
 
 tokenizer = AutoTokenizer.from_pretrained("google/gemma-2-2b-it")
-model = AutoModelForCausalLM.from_pretrained(
-    "google/gemma-2-2b-it",
-    device_map="auto",
-    dtype=torch.bfloat16,
-)
 
-start_time = time.perf_counter()
-
-input_text = prompt
-input_ids = tokenizer(input_text, return_tensors="pt").to("cuda")
+input_ids = tokenizer(prompt, return_tensors="pt")
+input_ids = {k: v.to(device) for k, v in input_ids.items()}
 
 outputs = model.generate(**input_ids, max_new_tokens=1024)
-
-end_time = time.perf_counter()
-execution_time = end_time - start_time
-print(f"Execution time: {execution_time:.4f} seconds")
 
 with open("output.md", "w", encoding="utf-8") as file:
     file.write(tokenizer.decode(outputs[0]))
