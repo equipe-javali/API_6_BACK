@@ -7,15 +7,8 @@ from routes.csv import router as csv_router  # Adicione esta linha
 
 app = FastAPI()
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app.include_router(enviar_relatorio.router)
 
-@app.get("/")
 def home():
     return {"message": "Hello, Backend em Python!"}
 
