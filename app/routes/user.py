@@ -1,47 +1,79 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List
-from passlib.context import CryptContext
+from pydantic import BaseModel
 
-from db.neon_db import get_db, NeonDB
-from models.user import User, UserCreate, UserRead
+from db.neon_db import NeonDB, get_db
+from models.user import User, UserRead, StatusBoletimRequest
+from services.user_service import UserService
 from routes.auth import get_current_active_user
 
 router = APIRouter(
     prefix="/users",
-    tags=["users"],
-    responses={404: {"description": "Not found"}},
+    tags=["usuários"],
+    responses={404: {"description": "Não encontrado"}},
 )
 
-# Configuração do hash de senha
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Instância do serviço
+user_service = UserService()
 
-def get_password_hash(password):
-    return pwd_context.hash(password)
-
-
-
-@router.get("/read", response_model=List[UserRead])  # Mude para UserRead
-def read_users(skip: int = 0, limit: int = 10, db: NeonDB = Depends(get_db), current_user: User = Depends(get_current_active_user)):
+@router.get("/", response_model=List[UserRead])
+def read_users(
+    skip: int = 0, 
+    limit: int = 10, 
+    db: NeonDB = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Lista todos os usuários (requer autenticação)"""
     try:
-        # Consulta ajustada para incluir username (gerado do email)
-        users = db.fetchall("SELECT id, email, recebe_boletim FROM usuario ORDER BY id OFFSET %s LIMIT %s", [skip, limit])
-        
-        # Mapeie para UserRead
-        user_list = []
-        for row in users:
-            username = row[1].split('@')[0]  # Gera username do email
-            user_dict = {
-                "id": row[0],
-                "email": row[1],
-                "username": username,
-                "is_active": True  # Assumindo que todos são ativos
-            }
-            user_list.append(UserRead(**user_dict))
-        
-        return user_list
+        users = user_service.get_users(skip, limit, db)
+               
+        return [
+            UserRead(
+                id=user["id"],
+                email=user["email"],
+                username=user["username"],
+                is_active=True
+            )
+            for user in users
+        ]
     except Exception as e:
         print(f"Erro ao buscar usuários: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro ao buscar usuários: {str(e)}"
         )
+
+@router.get("/{user_id}/status-boletim")
+def get_status_boletim(
+    user_id: int, 
+    db: NeonDB = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Consulta o status de recebimento de boletim de um usuário (requer autenticação)"""
+    result = user_service.get_status_boletim(user_id, db)
+    
+    if not result["success"]:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=result["message"]
+        )
+    
+    return result
+
+@router.put("/{user_id}/status")
+def update_status(
+    user_id: int,
+    request: StatusBoletimRequest,
+    db: NeonDB = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Atualiza o status de recebimento de boletim (requer autenticação)"""
+    result = user_service.alterar_status_boletim(user_id, request.recebe_boletim, current_user.id, db)
+    
+    if not result["success"]:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=result["message"]
+        )
+        
+    return result
