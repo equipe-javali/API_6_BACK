@@ -14,3 +14,12 @@ class User(UserBase):
 
     class Config:
         from_attributes = True 
+
+class UserRead(BaseModel):
+    id: int
+    email: str
+    username: str
+    is_active: bool
+
+    class Config:
+        from_attributes = True
