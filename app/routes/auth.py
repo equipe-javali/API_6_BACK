@@ -21,7 +21,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
             detail="Email ou senha incorretos",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    access_token_expires = timedelta(minutes=30)  # Ou use a variável de ambiente
+    access_token_expires = timedelta(minutes=30)  
     access_token = create_access_token(
         data={"sub": user.email}, expires_delta=access_token_expires
     )

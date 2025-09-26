@@ -36,12 +36,12 @@ def get_user(email: str, db: NeonDB = None) -> Optional[User]:
         db = NeonDB()  
     
     try:
-        # Removida coluna username da consulta
+        
         user_row = db.fetchone("SELECT id, email, senha, recebe_boletim FROM usuario WHERE email = %s", [email])
         if not user_row:
             return None
         
-        # Criamos username a partir do email
+        
         email_parts = user_row[1].split('@')
         username = email_parts[0] if email_parts else user_row[1]
         
@@ -49,7 +49,7 @@ def get_user(email: str, db: NeonDB = None) -> Optional[User]:
         user_dict = {
             "id": user_row[0],
             "email": user_row[1],
-            "username": username,  # Gerado a partir do email
+            "username": username,  
             "hashed_password": user_row[2],  
             "is_active": True  
         }
