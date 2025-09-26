@@ -1,12 +1,19 @@
+import pandas
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from ..services.UsuarioService import UsuarioService
 
-from app.services.enviar_email import enviar_email
-from app.models.relatorio_model import get_usuarios_boletim
+from ..services.enviar_email import enviar_email
+from ..models.relatorio_model import get_usuarios_boletim
+from ..services.boletim_service import BoletimService
+from models.dados_boletim_model import DadosBoletimModel
+from models.estoque_model import EstoqueModel
+from models.faturamento_model import FaturamentoModel
 
 router = APIRouter()
 usuario_service = UsuarioService()
+boletim_service = BoletimService()
 
 class AlterarStatusBoletimRequest(BaseModel):
     user_id: int
@@ -65,9 +72,18 @@ def enviar_relatorio():
         raise HTTPException(status_code=404, detail="Nenhum usuário para boletim encontrado.")
 
     assunto = "Relatório Semanal"
-    conteudo_html = """
-    <h1>Seu Boletim</h1>
-    <p>Aqui estão as informações atualizadas do dataset 🚀</p>
+    estoque_df = pandas.read_csv("estoque 1.csv", encoding="utf-8", sep="|")
+    faturamento_df = pandas.read_csv("faturamento 1.csv", encoding="utf-8", sep="|")
+
+    dados_estoque = [EstoqueModel(*values) for values in estoque_df.values]
+    dados_faturamento = [FaturamentoModel(*values) for values in faturamento_df.values]
+
+    dados_boletim = DadosBoletimModel.from_raw_data(dados_estoque, dados_faturamento)
+    boletim_texto = boletim_service.gerar_str_boletim(dados_boletim)
+
+    conteudo_html = f"""
+    <h1>Relatório Semanal</h1>
+    <p>{boletim_texto}</p>
     """
 
     resultado = enviar_email(destinatarios, assunto, conteudo_html)
