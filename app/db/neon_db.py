@@ -35,5 +35,18 @@ class NeonDB:
         cursor.execute(sql, params)
         return cursor.fetchone()
     
+    def fetchall(self, sql: str, params: list | None = None) -> list[tuple]:
+        cursor = self.__cursor()
+        cursor.execute(sql, params)
+        return cursor.fetchall()
+    
     def commit(self):
         self.conn.commit()
+
+def get_db():
+    db = NeonDB()
+    try:
+        yield db
+    finally:
+        db.__exit__(None, None, None)
+
