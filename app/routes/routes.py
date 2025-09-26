@@ -1,0 +1,78 @@
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+from ..services.UsuarioService import UsuarioService
+
+from app.services.enviar_email import enviar_email
+from app.db.db_simulado import usuarios 
+
+router = APIRouter()
+usuario_service = UsuarioService()
+
+class AlterarStatusBoletimRequest(BaseModel):
+    user_id: int
+    recebe_boletim: bool
+    admin_user_id: int
+
+class CriarUsuarioRequest(BaseModel):
+    email: str
+    senha: str
+    recebe_boletim: bool = True
+
+@router.put("/usuario/status-boletim")
+def alterar_status_boletim(request: AlterarStatusBoletimRequest):
+    """
+    Altera o status de recebimento de boletim de um usuário.
+    Apenas administradores podem usar esta rota.
+    """
+    return usuario_service.alterar_status_boletim(
+        request.user_id, 
+        request.recebe_boletim, 
+        request.admin_user_id
+    )
+
+@router.get("/usuario/{user_id}/status-boletim")
+def get_status_boletim(user_id: int):
+    """
+    Consulta o status atual de recebimento de boletim de um usuário.
+    """
+    return usuario_service.get_status_boletim(user_id)
+
+@router.post("/usuario")
+def criar_usuario(request: CriarUsuarioRequest):
+    try:
+        return usuario_service.criar_usuario(
+            request.email,
+            request.senha,
+            request.recebe_boletim
+        )
+    except Exception as e:
+        print(f"[Rota /usuario] Erro: {e}")
+        raise HTTPException(status_code=500, detail="Erro ao criar usuário")
+
+@router.get("/usuarios")
+def listar_usuarios():
+    """
+    Lista todos os usuários cadastrados.
+    """
+    return usuario_service.listar_usuarios()
+
+@router.post("/enviar-relatorio")
+def enviar_relatorio():
+    
+    destinatarios = [u["email"] for u in usuarios if u.get("recebe_boletim")]
+
+    if not destinatarios:
+        raise HTTPException(status_code=404, detail="Nenhum usuário para boletim encontrado.")
+
+    assunto = "Relatório Semanal"
+    conteudo_html = """
+    <h1>Seu Boletim</h1>
+    <p>Aqui estão as informações atualizadas do dataset 🚀</p>
+    """
+
+    resultado = enviar_email(destinatarios, assunto, conteudo_html)
+
+    if resultado["status"] == "erro":
+        raise HTTPException(status_code=500, detail=resultado["mensagem"])
+
+    return {"message": f"Boletim enviado para {len(destinatarios)} usuários."}
