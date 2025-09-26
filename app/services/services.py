@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 from app.db.db_simulado import usuarios
 from fastapi import HTTPException, status
 
@@ -28,3 +29,17 @@ def enviar_email(destinatario: str, assunto: str, mensagem: str):
     """
     print(f"📧 Enviando email para {destinatario} | Assunto: {assunto}")
     print("Mensagem:", mensagem)
+=======
+# Arquivo de índice para importações centralizadas
+from .UsuarioService import UsuarioService
+
+# Aqui você pode adicionar outros services conforme necessário
+# from .BoletimService import BoletimService
+# from .MensagemService import MensagemService
+
+__all__ = [
+    "UsuarioService",
+    # "BoletimService",
+    # "MensagemService",
+]
+>>>>>>> ba3dfbf8458a298dbf77ecfa373e0ff6fcbcb2e1
