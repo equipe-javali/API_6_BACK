@@ -7,13 +7,12 @@ from ..services.UsuarioService import UsuarioService
 from ..services.enviar_email import enviar_email
 from ..models.relatorio_model import get_usuarios_boletim
 from ..services.boletim_service import BoletimService
-from models.dados_boletim_model import DadosBoletimModel
-from models.estoque_model import EstoqueModel
-from models.faturamento_model import FaturamentoModel
+from ..models.dados_boletim_model import DadosBoletimModel
+from ..models.estoque_model import EstoqueModel
+from ..models.faturamento_model import FaturamentoModel
 
 router = APIRouter()
 usuario_service = UsuarioService()
-boletim_service = BoletimService()
 
 class AlterarStatusBoletimRequest(BaseModel):
     user_id: int
@@ -65,6 +64,7 @@ def listar_usuarios():
 
 @router.post("/enviar-relatorio")
 def enviar_relatorio():
+    boletim_service = BoletimService()
     usuarios = get_usuarios_boletim()
     destinatarios = [u["email"] for u in usuarios]
 
@@ -72,8 +72,8 @@ def enviar_relatorio():
         raise HTTPException(status_code=404, detail="Nenhum usuário para boletim encontrado.")
 
     assunto = "Relatório Semanal"
-    estoque_df = pandas.read_csv("estoque 1.csv", encoding="utf-8", sep="|")
-    faturamento_df = pandas.read_csv("faturamento 1.csv", encoding="utf-8", sep="|")
+    estoque_df = pandas.read_csv("../db/estoque 1.csv", encoding="utf-8", sep="|")
+    faturamento_df = pandas.read_csv("../db/faturamento 1.csv", encoding="utf-8", sep="|")
 
     dados_estoque = [EstoqueModel(*values) for values in estoque_df.values]
     dados_faturamento = [FaturamentoModel(*values) for values in faturamento_df.values]

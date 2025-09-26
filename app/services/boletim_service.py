@@ -4,7 +4,7 @@ import os
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch
 
-from models.dados_boletim_model import DadosBoletimModel
+from ..models.dados_boletim_model import DadosBoletimModel
 
 HG_TOKEN = os.getenv("HG_TOKEN")
 
