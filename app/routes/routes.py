@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from ..services.UsuarioService import UsuarioService
 
 from app.services.enviar_email import enviar_email
-from app.db.db_simulado import usuarios 
+from app.models.relatorio_model import get_usuarios_boletim
 
 router = APIRouter()
 usuario_service = UsuarioService()
@@ -58,8 +58,8 @@ def listar_usuarios():
 
 @router.post("/enviar-relatorio")
 def enviar_relatorio():
-    
-    destinatarios = [u["email"] for u in usuarios if u.get("recebe_boletim")]
+    usuarios = get_usuarios_boletim()
+    destinatarios = [u["email"] for u in usuarios]
 
     if not destinatarios:
         raise HTTPException(status_code=404, detail="Nenhum usuário para boletim encontrado.")
