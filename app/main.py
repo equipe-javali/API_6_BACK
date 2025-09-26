@@ -1,8 +1,11 @@
 from fastapi import FastAPI
 from routes.auth import router as auth_router  
 from routes.user import router as user_router
+from .routes.routes import router
 
 app = FastAPI()
+
+app.include_router(router)
 
 @app.get("/")
 def home():
