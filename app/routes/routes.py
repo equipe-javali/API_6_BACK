@@ -2,6 +2,9 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from ..services.UsuarioService import UsuarioService
 
+from app.services.enviar_email import enviar_email
+from app.db.db_simulado import usuarios 
+
 router = APIRouter()
 usuario_service = UsuarioService()
 
@@ -52,3 +55,24 @@ def listar_usuarios():
     Lista todos os usuários cadastrados.
     """
     return usuario_service.listar_usuarios()
+
+@router.post("/enviar-relatorio")
+def enviar_relatorio():
+    
+    destinatarios = [u["email"] for u in usuarios if u.get("recebe_boletim")]
+
+    if not destinatarios:
+        raise HTTPException(status_code=404, detail="Nenhum usuário para boletim encontrado.")
+
+    assunto = "Relatório Semanal"
+    conteudo_html = """
+    <h1>Seu Boletim</h1>
+    <p>Aqui estão as informações atualizadas do dataset 🚀</p>
+    """
+
+    resultado = enviar_email(destinatarios, assunto, conteudo_html)
+
+    if resultado["status"] == "erro":
+        raise HTTPException(status_code=500, detail=resultado["mensagem"])
+
+    return {"message": f"Boletim enviado para {len(destinatarios)} usuários."}
