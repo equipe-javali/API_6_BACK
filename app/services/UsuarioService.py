@@ -1,4 +1,4 @@
-from ..db.neon_db import NeonDB
+from db.neon_db import NeonDB
 
 class UsuarioService:
     def alterar_status_boletim(self, user_id: int, recebe_boletim: bool, admin_user_id: int) -> dict:
