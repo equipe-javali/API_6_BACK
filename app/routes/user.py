@@ -32,7 +32,8 @@ def read_users(
                 id=user["id"],
                 email=user["email"],
                 username=user["username"],
-                is_active=True
+                is_active=True,
+                recebe_boletim=user.get("recebe_boletim", False)
             )
             for user in users
         ]

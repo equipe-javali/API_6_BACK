@@ -20,7 +20,8 @@ class UserRead(BaseModel):
     email: str
     username: str
     is_active: bool
-
+    recebe_boletim: bool
+    
     class Config:
         from_attributes = True
         
