@@ -77,6 +77,36 @@ class UserService:
                 "email": result[1],
                 "recebe_boletim": result[2]
             }
+            
         }
+    
+    def delete_user(self, user_id: int, db: NeonDB) -> Dict[str, Any]:
+        """
+        Exclui um usuário do sistema.
+        """
+        # Verificar se o usuário existe
+        user_result = db.fetchone("SELECT id, email FROM usuario WHERE id = %s", [user_id])
+        if not user_result:
+            return {
+                "success": False,
+                "message": "Usuário não encontrado"
+            }
+        
+        # Excluir o usuário
+        db.execute("DELETE FROM usuario WHERE id = %s", [user_id])
+        db.commit()
+        
+        return {
+            "success": True,
+            "message": "Usuário excluído com sucesso",
+            "usuario_excluido": {
+                "id": user_result[0],
+                "email": user_result[1]
+            }
+        }
+    
+    
+    
+    
 
     

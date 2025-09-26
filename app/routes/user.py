@@ -77,3 +77,20 @@ def update_status(
         )
         
     return result
+
+@router.delete("/{user_id}")
+def delete_user(
+    user_id: int,
+    db: NeonDB = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Exclui um usuário (requer autenticação)"""
+    result = user_service.delete_user(user_id, db)
+    
+    if not result["success"]:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=result["message"]
+        )
+        
+    return result
