@@ -105,6 +105,29 @@ class UserService:
             }
         }
     
+    def criar_user(self, email: str, senha: str, recebe_boletim: bool = True) -> dict:
+            """
+            Cria um novo usuário no sistema.
+            """
+            with NeonDB() as db:
+                existing = db.fetchone("SELECT id FROM usuario WHERE email = %s", [email])
+                if existing:
+                    return {"success": False,"message": "Esse e-mail já foi cadastrado!"}
+                result = db.fetchone(
+                    "INSERT INTO usuario (email, senha, recebe_boletim) VALUES (%s, %s, %s) RETURNING id",
+                    [email, senha, recebe_boletim]
+                )
+                db.commit()
+                return {
+                    "success": True,
+                    "message": "Usuário criado com sucesso!",
+                    "usuario": {
+                        "id": result[0],
+                        "email": email,
+                        "recebe_boletim": recebe_boletim
+                    }
+                }
+    
     
     
     
