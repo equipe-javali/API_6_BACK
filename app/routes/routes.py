@@ -72,8 +72,8 @@ def enviar_relatorio():
         raise HTTPException(status_code=404, detail="Nenhum usuário para boletim encontrado.")
 
     assunto = "Relatório Semanal"
-    estoque_df = pandas.read_csv("../db/estoque 1.csv", encoding="utf-8", sep="|")
-    faturamento_df = pandas.read_csv("../db/faturamento 1.csv", encoding="utf-8", sep="|")
+    estoque_df = pandas.read_csv("app/db/estoque 1.csv", encoding="utf-8", sep="|")
+    faturamento_df = pandas.read_csv("app/db/faturamento 1.csv", encoding="utf-8", sep="|")
 
     dados_estoque = [EstoqueModel(*values) for values in estoque_df.values]
     dados_faturamento = [FaturamentoModel(*values) for values in faturamento_df.values]
