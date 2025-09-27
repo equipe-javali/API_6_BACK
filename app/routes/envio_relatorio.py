@@ -1,14 +1,15 @@
 import pandas
+import os
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from ..services.enviar_email import enviar_email
-from ..models.relatorio_model import get_usuarios_boletim
-from ..services.boletim_service import BoletimService
-from ..models.dados_boletim_model import DadosBoletimModel
-from ..models.estoque_model import EstoqueModel
-from ..models.faturamento_model import FaturamentoModel
+from services.enviar_email import enviar_email
+from models.relatorio_model import get_usuarios_boletim
+from services.boletim_service import BoletimService
+from models.dados_boletim_model import DadosBoletimModel
+from models.estoque_model import EstoqueModel
+from models.faturamento_model import FaturamentoModel
 
 router = APIRouter()
 
@@ -22,8 +23,11 @@ def enviar_relatorio():
         raise HTTPException(status_code=404, detail="Nenhum usuário para boletim encontrado.")
 
     assunto = "Relatório Semanal"
-    estoque_df = pandas.read_csv("app/db/estoque 1.csv", encoding="utf-8", sep="|")
-    faturamento_df = pandas.read_csv("app/db/faturamento 1.csv", encoding="utf-8", sep="|")
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    estoque_path = os.path.join(base_dir, "db", "estoque 1.csv")
+    estoque_df = pandas.read_csv(estoque_path, encoding="utf-8", sep="|")
+    faturamento_path = os.path.join(base_dir, "db", "faturamento 1.csv")
+    faturamento_df = pandas.read_csv(faturamento_path, encoding="utf-8", sep="|")
 
     dados_estoque = [EstoqueModel(*values) for values in estoque_df.values]
     dados_faturamento = [FaturamentoModel(*values) for values in faturamento_df.values]

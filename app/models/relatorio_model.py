@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from ..db.neon_db import NeonDB
+from db.neon_db import NeonDB
 
 class Relatorio(BaseModel):
     titulo: str

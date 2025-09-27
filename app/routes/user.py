@@ -24,7 +24,7 @@ class CriarUsuario(BaseModel):
 @router.get("/", response_model=List[UserRead])
 def read_users(
     skip: int = 0, 
-    limit: int = 10, 
+    limit: int = 100, 
     db: NeonDB = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
