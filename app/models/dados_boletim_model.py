@@ -2,8 +2,8 @@ from datetime import datetime, timedelta
 from statistics import mean
 import math
 
-from .estoque_model import EstoqueModel
-from .faturamento_model import FaturamentoModel
+from models.estoque_model import EstoqueModel
+from models.faturamento_model import FaturamentoModel
 
 
 

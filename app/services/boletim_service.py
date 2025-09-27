@@ -1,12 +1,11 @@
 import re
-import os
 
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch
 
-from ..models.dados_boletim_model import DadosBoletimModel
+from models.dados_boletim_model import DadosBoletimModel
 
-HG_TOKEN = os.getenv("HG_TOKEN")
+
 
 class BoletimService:
     def __init__(self):
@@ -16,7 +15,6 @@ class BoletimService:
         if self.device.type == "cuda":
             self.model = AutoModelForCausalLM.from_pretrained(
                 "google/gemma-2-2b-it",
-                token=HG_TOKEN,
                 device_map="auto",
                 dtype=torch.bfloat16,
             )
