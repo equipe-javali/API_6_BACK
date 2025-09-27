@@ -1,9 +1,9 @@
 from fastapi import FastAPI
-from .routes.routes import router
+from .routes.envio_relatorio import enviar_relatorio
 
 app = FastAPI()
 
-app.include_router(router)
+app.include_router(enviar_relatorio)
 
 @app.get("/")
 def home():
