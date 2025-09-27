@@ -1,21 +1,10 @@
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from routes.auth import router as auth_router  
-from routes.user import router as user_router
-from routes.csv import router as csv_router  # Adicione esta linha
-
+from .routes.envio_relatorio import enviar_relatorio
 
 app = FastAPI()
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app.include_router(enviar_relatorio)
 
-@app.get("/")
 def home():
     return {"message": "Hello, Backend em Python!"}
 
