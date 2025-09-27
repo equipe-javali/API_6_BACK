@@ -16,6 +16,11 @@ router = APIRouter(
 # Instância do serviço
 user_service = UserService()
 
+class CriarUsuario(BaseModel):
+    email: str
+    senha: str
+    recebe_boletim: bool = True
+
 @router.get("/", response_model=List[UserRead])
 def read_users(
     skip: int = 0, 
@@ -95,3 +100,15 @@ def delete_user(
         )
         
     return result
+
+@router.post("/usuario")
+def criar_usuario(request: CriarUsuario):
+    try:
+        return user_service.criar_user(
+            request.email,
+            request.senha,
+            request.recebe_boletim
+        )
+    except Exception as e:
+        print(f"[Rota /usuario] Erro: {e}")
+        raise HTTPException(status_code=500, detail="Erro ao criar usuário")
