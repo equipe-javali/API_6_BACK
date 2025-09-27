@@ -14,3 +14,16 @@ class User(UserBase):
 
     class Config:
         from_attributes = True 
+
+class UserRead(BaseModel):
+    id: int
+    email: str
+    username: str
+    is_active: bool
+    recebe_boletim: bool
+    
+    class Config:
+        from_attributes = True
+        
+class StatusBoletimRequest(BaseModel):
+    recebe_boletim: bool

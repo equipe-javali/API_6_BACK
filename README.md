@@ -10,18 +10,40 @@ BACK-END
 <h1 align='center'> :keyboard:  :keyboard: </h1>
 
 ## :mag_right: Índice
-<p align='center'> <!-- 
+<p align='center'>
     <a href="#rotas">Rotas</a> |
     <a href="#estrutura">Estrutura</a>  |
     <a href="#requisitos">Requisitos</a> |
     <a href="#execucao">Execução</a> |
-    <a href="#teste">Teste</a> | -->
+    <!-- <a href="#teste">Teste</a> | -->
     <a href="#estrategia">Estratégia de Branches</a>
 </p>
 
-<!-- <span id="rotas">
+<span id="rotas">
 
 ## :bust_in_silhouette: Descrição das Rotas
+
+# Autenticação
+## POST - `/token`
+Rota de login, deve receber `username` e `password` e retorna o token JWT de acesso.
+
+## GET - `/users/me/`
+Rota que retorna os dados do usuário logado.
+
+# Usuários
+## GET - `/users`
+Lista todos os usuários.
+
+## GET - `/users/{id}/status-boletim`
+Consulta o status de recebimento de boletim de um usuário.
+
+## PUT - `/users/{id}/status`
+Atualiza o status de recebimento de boletim.
+
+## DELETE - `/users/{id}`
+Atualiza o status de recebimento de boletim.
+
+[Voltar ao topo](#sumário)
 
 → [Voltar ao topo](#topo)
 
@@ -29,21 +51,43 @@ BACK-END
 
 ## :scroll: Descrição da Estrutura
 
+```
+app/
+    db - arquivos
+    models - modelos das tabelas
+    routes - rotas
+    services - serviços
+    main.py - ponto inicial do projeto
+```
+
 → [Voltar ao topo](#topo)
 
 <span id="requisitos">
 
 ## :clipboard: Requisitos para a Execução
+
+Para executar o projeto, certifiquece de ter instalados os seguintes programas:
+* Python
+* Git
     
 → [Voltar ao topo](#topo)
 
-<!-- <span id="execucao">
+<span id="execucao">
 
 ## :gear: Instruções para Executar
 
+```
+git clone https://github.com/equipe-javali/API_6_BACK
+cd API_6_BACK
+python -m venv venv
+.\venv\Scripts\activate
+python install -r req.txt
+python .\app\main.py
+```
+
 → [Voltar ao topo](#topo)
 
-<span id="execucao">
+<!-- <span id="execucao">
 
 ## :gear: Instruções para Executar
 
