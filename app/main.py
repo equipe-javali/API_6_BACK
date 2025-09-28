@@ -2,7 +2,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routes.auth import router as auth_router  
 from routes.user import router as user_router
-from routes.csv import router as csv_router  # Adicione esta linha
+from routes.csv import router as csv_router  
+from routes.envio_relatorio import router as envio_relatorio_router
 
 
 app = FastAPI()
@@ -22,6 +23,7 @@ def home():
 app.include_router(auth_router)
 app.include_router(user_router)
 app.include_router(csv_router) 
+app.include_router(envio_relatorio_router)
 
 
 if __name__ == "__main__":
