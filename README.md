@@ -41,7 +41,7 @@ Consulta o status de recebimento de boletim de um usuário.
 Atualiza o status de recebimento de boletim.
 
 ## DELETE - `/users/{id}`
-Atualiza o status de recebimento de boletim.
+Deleta o usuário.
 
 ## GET - `/tipo/{id}`
 Retorna o usuário e seu tipo (admin ou não)
