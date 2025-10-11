@@ -1,4 +1,5 @@
 import re
+import random
 from datetime import datetime, timedelta
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch
@@ -9,6 +10,13 @@ from models.dados_boletim_model import DadosBoletimModel
 
 class BoletimService:
     def __init__(self):
+        # Definindo seed fixa para reprodutibilidade
+        seed_value = 42
+        random.seed(seed_value)
+        torch.manual_seed(seed_value)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(seed_value)
+            
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print("BoletimService using device:", self.device)
 
@@ -24,7 +32,9 @@ class BoletimService:
                 low_cpu_mem_usage=True,
             )
             self.model.to(self.device, dtype=torch.float32)
-
+            
+        # Ativando modo de avaliação para desativar dropout e garantir consistência
+        self.model.eval()
         self.tokenizer = AutoTokenizer.from_pretrained("google/gemma-3-1b-pt")
 
     def _gerar_periodo_boletim(self) -> tuple[str, str]:
@@ -36,10 +46,12 @@ class BoletimService:
     def _formatar_dados_estruturados(self, dados: DadosBoletimModel) -> str:
         """Formata os dados de forma estruturada para facilitar análise"""
         data_inicio, data_fim = self._gerar_periodo_boletim()
-        
-        # Formatação de listas
+              
         skus_alto = ", ".join(dados.skus_alto_giro_sem_estoque) if dados.skus_alto_giro_sem_estoque else "Nenhum"
         itens_repor = ", ".join(dados.itens_a_repor) if dados.itens_a_repor else "Nenhum"
+
+        prob_sku1 = getattr(dados, "probabilidade_desabastecimento_sku1", None)
+        prob_text = f"• Probabilidade de desabastecimento do SKU_1 em <2 semanas: {prob_sku1}" if prob_sku1 is not None else ""
         
         return f"""
 📊 INDICADORES DE ESTOQUE E FATURAMENTO
@@ -61,6 +73,7 @@ Período Analisado: {data_inicio} a {data_fim} (últimas 52 semanas)
 
 4. ALERTAS CRÍTICOS
    • Risco de desabastecimento SKU_1: {dados.risco_desabastecimento_sku1}
+{prob_text}
 """
 
     def _gerar_analise_baseada_regras(self, dados: DadosBoletimModel) -> str:
@@ -114,21 +127,22 @@ Risco SKU_1: {dados.risco_desabastecimento_sku1}
 Análise:"""
 
         try:
-            input_ids = self.tokenizer(prompt, return_tensors="pt")
-            input_ids = {k: v.to(self.device) for k, v in input_ids.items()}
+            # Usando torch.no_grad() para garantir que não haja atualizações de gradientes
+            with torch.no_grad():
+                input_ids = self.tokenizer(prompt, return_tensors="pt")
+                input_ids = {k: v.to(self.device) for k, v in input_ids.items()}
 
-            # Parâmetros otimizados
-            outputs = self.model.generate(
-                **input_ids, 
-                max_new_tokens=250,
-                temperature=0.7,
-                do_sample=True,
-                top_p=0.9,
-                top_k=40,
-                repetition_penalty=1.4,
-                no_repeat_ngram_size=4,
-                pad_token_id=self.tokenizer.eos_token_id
-            )
+                # Parâmetros determinísticos para resultados consistentes
+                outputs = self.model.generate(
+                    **input_ids, 
+                    max_new_tokens=250,
+                    temperature=0,  # temperatura zero para determinismo
+                    do_sample=False,  # desativa amostragem aleatória
+                    repetition_penalty=1.4,
+                    no_repeat_ngram_size=4,
+                    pad_token_id=self.tokenizer.eos_token_id,
+                    seed=42  # seed fixa para consistência
+                )
             output_str = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
 
             # Extrai apenas a parte após "Análise:"
