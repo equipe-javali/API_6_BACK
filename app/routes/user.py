@@ -127,3 +127,16 @@ def historico_mensagens(
     except Exception as e:
         print(f"[Rota /mensagens/{{user_id}}] Erro: {e}")
         raise HTTPException(status_code=500, detail="Erro ao buscar usuário")
+
+@router.get("/tipo/{user_id}")
+def tipo_usuario(
+    user_id: int,
+    db: NeonDB = Depends(get_db)
+):
+    """Retorna o tipo do usuário (requer autenticação)"""
+    try:
+        user = user_service.get_user(user_id, db)
+        return user
+    except Exception as e:
+        print(f"[Rota /tipo/{{user_id}}] Erro: {e}")
+        raise HTTPException(status_code=500, detail="Erro ao buscar usuário")
