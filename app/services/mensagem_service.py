@@ -23,7 +23,7 @@ class MensagemService:
                 for mensagem in mensagens
             ],
             key=lambda x: x["envio"],
-            reverse=True
+            reverse=False
         )
 
         return sorted_mensagens
