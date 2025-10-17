@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from db.neon_db import NeonDB, get_db
 from models.user import User, UserRead, StatusBoletimRequest
 from services.user_service import UserService
+from services.mensagem_service import MensagemService
 from routes.auth import get_current_active_user
 
 router = APIRouter(
@@ -15,6 +16,7 @@ router = APIRouter(
 
 # Instância do serviço
 user_service = UserService()
+mensagem_service = MensagemService()
 
 class CriarUsuario(BaseModel):
     email: str
@@ -113,8 +115,21 @@ def criar_usuario(request: CriarUsuario):
         print(f"[Rota /usuario] Erro: {e}")
         raise HTTPException(status_code=500, detail="Erro ao criar usuário")
 
-@router.get("/tipo/{user_id}")
+@router.get("/mensagens/{user_id}")
 def historico_mensagens(
+    user_id: int,
+    db: NeonDB = Depends(get_db)
+):
+    """Lista o histórico de mensagens de um usuário (requer autenticação)"""
+    try:
+        mensagens = mensagem_service.get_mensagens(user_id, db)
+        return mensagens
+    except Exception as e:
+        print(f"[Rota /mensagens/{{user_id}}] Erro: {e}")
+        raise HTTPException(status_code=500, detail="Erro ao buscar usuário")
+
+@router.get("/tipo/{user_id}")
+def tipo_usuario(
     user_id: int,
     db: NeonDB = Depends(get_db)
 ):
