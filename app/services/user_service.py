@@ -5,6 +5,20 @@ from typing import List, Dict, Any, Optional
 class UserService:
     """Serviço para gerenciar usuários"""
         
+    def get_user(self, id: int, db: NeonDB) -> List[Dict[str, Any]]:
+        """Lista usuários com paginação"""
+        user = db.fetchall(
+            "SELECT id, email, recebe_boletim, admin FROM usuario WHERE id = %s",
+            [id]
+        )[0]
+        
+        return {
+            "id": user[0],
+            "email": user[1], 
+            "username": user[1].split('@')[0],
+            "recebe_boletim": user[2],
+            "admin": bool(user[3])
+        }
     
     def get_users(self, skip: int, limit: int, db: NeonDB) -> List[Dict[str, Any]]:
         """Lista usuários com paginação"""
