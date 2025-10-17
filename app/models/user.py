@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from datetime import datetime
 
 class UserBase(BaseModel):
     email: str
@@ -27,3 +28,15 @@ class UserRead(BaseModel):
         
 class StatusBoletimRequest(BaseModel):
     recebe_boletim: bool
+
+
+# Modelos para perguntas (chat)
+class PerguntaCreate(BaseModel):
+    id_usuario: int
+    mensagem: str
+    ia: bool
+
+
+class Pergunta(PerguntaCreate):
+    id: int
+    envio: datetime

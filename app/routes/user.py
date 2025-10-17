@@ -3,7 +3,7 @@ from typing import List
 from pydantic import BaseModel
 
 from db.neon_db import NeonDB, get_db
-from models.user import User, UserRead, StatusBoletimRequest
+from models.user import User, UserRead, StatusBoletimRequest, PerguntaCreate, Pergunta
 from services.user_service import UserService
 from routes.auth import get_current_active_user
 
@@ -15,6 +15,9 @@ router = APIRouter(
 
 # Instância do serviço
 user_service = UserService()
+
+from datetime import datetime
+
 
 class CriarUsuario(BaseModel):
     email: str
@@ -112,3 +115,36 @@ def criar_usuario(request: CriarUsuario):
     except Exception as e:
         print(f"[Rota /usuario] Erro: {e}")
         raise HTTPException(status_code=500, detail="Erro ao criar usuário")
+
+
+# Rota para enviar pergunta
+@router.post("/enviar-pergunta", response_model=Pergunta)
+def enviar_pergunta(
+    pergunta: PerguntaCreate,
+    db: NeonDB = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    
+    print(f"[Rota enviar_pergunta] Recebido request para id_usuario={pergunta.id_usuario}")
+    # Apenas permite que o usuário autenticado envie pergunta em seu próprio id, ou admin poderia ser implementado
+    if current_user.id != pergunta.id_usuario:
+        print(f"[Rota enviar_pergunta] Falha na validação de usuário: current_user.id={current_user.id} != pergunta.id_usuario={pergunta.id_usuario}")
+        raise HTTPException(status_code=403, detail="Não autorizado a enviar pergunta para outro usuário")
+
+    
+    result = user_service.enviar_pergunta(pergunta.id_usuario, pergunta.mensagem, pergunta.ia, db)
+    print(f"[Rota enviar_pergunta] Resultado do serviço: {result}")
+
+    if not result.get("success"):
+        print(f"[Rota enviar_pergunta] Serviço retornou erro: {result.get('message')}")
+        raise HTTPException(status_code=500, detail=result.get("message", "Erro ao salvar pergunta"))
+
+    p = result["pergunta"]
+    print(f"[Rota enviar_pergunta] Retornando Pergunta id={p['id']}")
+    return Pergunta(
+        id=p["id"],
+        id_usuario=p["id_usuario"],
+        mensagem=p["mensagem"],
+        ia=p["ia"],
+        envio=p["envio"]
+    )
