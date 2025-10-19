@@ -52,3 +52,34 @@ def get_db():
     finally:
         db.__exit__(None, None, None)
 
+def execute_query(query: str):
+    """Executa uma query SQL e retorna os resultados formatados"""
+    with NeonDB() as db:
+        try:
+            # Se for SELECT, retornar dados formatados
+            if query.strip().upper().startswith('SELECT'):
+                cursor = db._NeonDB__cursor()
+                cursor.execute(query)
+                
+                # Obter nomes das colunas
+                columns = [desc[0] for desc in cursor.description] if cursor.description else []
+                
+                # Obter resultados
+                results = cursor.fetchall()
+                
+                # Converter para lista de dicionários
+                formatted_results = []
+                for row in results:
+                    row_dict = dict(zip(columns, row))
+                    formatted_results.append(row_dict)
+                
+                return formatted_results
+            else:
+                # Para INSERT, UPDATE, DELETE
+                db.execute(query)
+                db.commit()
+                return {"success": True}
+                
+        except Exception as e:
+            raise Exception(f"Erro ao executar query: {str(e)}")
+

@@ -84,7 +84,7 @@ git clone https://github.com/equipe-javali/API_6_BACK
 cd API_6_BACK
 python -m venv venv
 .\venv\Scripts\activate
-python install -r req.txt
+pip install -r req.txt
 python .\app\main.py
 ```
 
