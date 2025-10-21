@@ -1,12 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List
 from pydantic import BaseModel
-
+from datetime import datetime
 from db.neon_db import NeonDB, get_db
-from models.user import User, UserRead, StatusBoletimRequest, PerguntaCreate, Pergunta
+from models.user import PerguntaComResposta, User, UserRead, StatusBoletimRequest, PerguntaCreate, Pergunta
 from services.user_service import UserService
 from services.mensagem_service import MensagemService
 from routes.auth import get_current_active_user
+from services.chat_service import ChatService
+
+
 
 router = APIRouter(
     prefix="/users",
@@ -16,8 +19,10 @@ router = APIRouter(
 
 # Instância do serviço
 user_service = UserService()
+chat_service = ChatService()
 
-from datetime import datetime
+
+
 
 mensagem_service = MensagemService()
 
@@ -120,7 +125,7 @@ def criar_usuario(request: CriarUsuario):
 
 
 # Rota para enviar pergunta
-@router.post("/enviar-pergunta", response_model=Pergunta)
+@router.post("/enviar-pergunta", response_model=PerguntaComResposta)
 def enviar_pergunta(
     pergunta: PerguntaCreate,
     db: NeonDB = Depends(get_db),
@@ -134,7 +139,7 @@ def enviar_pergunta(
         raise HTTPException(status_code=403, detail="Não autorizado a enviar pergunta para outro usuário")
 
     
-    result = user_service.enviar_pergunta(pergunta.id_usuario, pergunta.mensagem, pergunta.ia, db)
+    result = user_service.enviar_pergunta(pergunta.id_usuario, pergunta.mensagem, False, db)
     print(f"[Rota enviar_pergunta] Resultado do serviço: {result}")
 
     if not result.get("success"):
@@ -143,36 +148,39 @@ def enviar_pergunta(
 
     p = result["pergunta"]
     print(f"[Rota enviar_pergunta] Retornando Pergunta id={p['id']}")
-    return Pergunta(
-        id=p["id"],
-        id_usuario=p["id_usuario"],
-        mensagem=p["mensagem"],
-        ia=p["ia"],
-        envio=p["envio"]
-    )
-
-@router.get("/mensagens/{user_id}")
-def historico_mensagens(
-    user_id: int,
-    db: NeonDB = Depends(get_db)
-):
-    """Lista o histórico de mensagens de um usuário (requer autenticação)"""
+    # Processar com IA
     try:
-        mensagens = mensagem_service.get_mensagens(user_id, db)
-        return mensagens
+        print(f"[Rota enviar_pergunta] Processando pergunta com IA...")
+        result_resposta = chat_service.processar_pergunta(
+            pergunta.id_usuario,
+            pergunta.mensagem,
+            db
+        )
+        
+        if not result_resposta.get("success"):
+            print(f"[Rota enviar_pergunta] Erro ao processar: {result_resposta.get('error')}")
+            raise Exception(result_resposta.get("error", "Erro ao processar pergunta"))
+        
+        print(f"[Rota enviar_pergunta] Resposta gerada com sucesso")
+        
+        # 3. Retornar resultado completo (pergunta + resposta)
+        resposta_texto = result_resposta["conversation"]["resposta"]
+        
+        return {
+            "success": True,
+            "pergunta": result["pergunta"],
+            "resposta": resposta_texto
+        }
+    
     except Exception as e:
-        print(f"[Rota /mensagens/{{user_id}}] Erro: {e}")
-        raise HTTPException(status_code=500, detail="Erro ao buscar usuário")
-
-@router.get("/tipo/{user_id}")
-def tipo_usuario(
-    user_id: int,
-    db: NeonDB = Depends(get_db)
-):
-    """Retorna o tipo do usuário (requer autenticação)"""
-    try:
-        user = user_service.get_user(user_id, db)
-        return user
-    except Exception as e:
-        print(f"[Rota /tipo/{{user_id}}] Erro: {e}")
-        raise HTTPException(status_code=500, detail="Erro ao buscar usuário")
+        print(f"[Rota enviar_pergunta] Erro ao processar: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        # ✨ Fallback: retorna a pergunta salva mesmo se IA falhar
+        # Assim o usuário não perde a pergunta
+        return {
+            "success": True,
+            "pergunta": result["pergunta"],
+            "resposta": f"Erro ao processar: {str(e)}"
+        }
