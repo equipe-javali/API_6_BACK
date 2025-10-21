@@ -41,7 +41,10 @@ Consulta o status de recebimento de boletim de um usuário.
 Atualiza o status de recebimento de boletim.
 
 ## DELETE - `/users/{id}`
-Atualiza o status de recebimento de boletim.
+Deleta o usuário.
+
+## GET - `/tipo/{id}`
+Retorna o usuário e seu tipo (admin ou não)
 
 [Voltar ao topo](#sumário)
 
@@ -81,7 +84,7 @@ git clone https://github.com/equipe-javali/API_6_BACK
 cd API_6_BACK
 python -m venv venv
 .\venv\Scripts\activate
-python install -r req.txt
+pip install -r req.txt
 python .\app\main.py
 ```
 

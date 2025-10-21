@@ -1,5 +1,3 @@
-import pandas
-import os
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, HTTPException
@@ -8,17 +6,16 @@ from pydantic import BaseModel
 from services.enviar_email import enviar_email
 from models.relatorio_model import get_usuarios_boletim
 from services.boletim_service import BoletimService
-from models.dados_boletim_model import DadosBoletimModel
-from models.estoque_model import EstoqueModel
-from models.faturamento_model import FaturamentoModel
+from services.carregar_dados_db import CarregadorDadosDB
 
 router = APIRouter()
 
 
 def _gerar_periodo_boletim() -> tuple[str, str]:
-    """Gera o período do boletim (últimas 52 semanas)"""
-    data_fim = datetime.now()
-    data_inicio = data_fim - timedelta(weeks=52)
+    """Gera o período do boletim (semana específica para teste)"""
+    # Convertendo as strings em objetos datetime
+    data_inicio = datetime.strptime('2024-01-10', '%Y-%m-%d')
+    data_fim = datetime.strptime('2024-01-15', '%Y-%m-%d')
     return data_inicio.strftime("%d/%m/%Y"), data_fim.strftime("%d/%m/%Y")
 
 
@@ -117,26 +114,27 @@ def enviar_relatorio():
         
         print(f"✅ {len(destinatarios)} destinatário(s) encontrado(s)")
 
-        # 2. Carregar dados dos CSVs
-        print("📂 Carregando dados dos CSVs...")
-        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        estoque_path = os.path.join(base_dir, "db", "estoque 1.csv")
-        faturamento_path = os.path.join(base_dir, "db", "faturamento 1.csv")
+        # Obter o período definido
+        data_inicio_obj, data_fim_obj = datetime.strptime('2024-01-10', '%Y-%m-%d'), datetime.strptime('2024-01-15', '%Y-%m-%d')
+        data_inicio_str, data_fim_str = '2024-01-10', '2024-01-15'  # Formato YYYY-MM-DD para o banco
         
-        estoque_df = pandas.read_csv(estoque_path, encoding="utf-8", sep="|")
-        faturamento_df = pandas.read_csv(faturamento_path, encoding="utf-8", sep="|")
+        print(f"📅 Período de análise: {data_inicio_obj.strftime('%d/%m/%Y')} a {data_fim_obj.strftime('%d/%m/%Y')}")
+
+        # 2. Carregar dados do banco de dados
+        print("🔗 Conectando ao banco de dados...")
+        carregador = CarregadorDadosDB()
         
-        print(f"✅ {len(estoque_df)} registros de estoque carregados")
-        print(f"✅ {len(faturamento_df)} registros de faturamento carregados")
-
-        # 3. Converter para modelos
-        dados_estoque = [EstoqueModel(*values) for values in estoque_df.values]
-        dados_faturamento = [FaturamentoModel(*values) for values in faturamento_df.values]
-
-        # 4. Processar dados e gerar indicadores
-        print("📊 Processando indicadores...")
-        dados_boletim = DadosBoletimModel.from_raw_data(dados_estoque, dados_faturamento)
-        print(f"✅ Indicadores gerados: {dados_boletim.qtd_estoque_consumido_ton}t consumidas")
+        try:
+            # 3. Processar dados e gerar indicadores com período específico
+            print("📊 Carregando dados e processando indicadores...")
+            dados_boletim = carregador.gerar_boletim_model(
+                data_inicio=data_inicio_str,
+                data_fim=data_fim_str
+            )
+            print(f"✅ Indicadores gerados: {dados_boletim.qtd_estoque_consumido_ton}t consumidas")
+        except Exception as e:
+            print(f"❌ Erro ao carregar dados do banco: {e}")
+            raise HTTPException(status_code=500, detail=f"Erro ao carregar dados: {str(e)}")
 
         # 5. Gerar boletim com IA
         print("🤖 Gerando boletim com IA...")
@@ -148,12 +146,12 @@ def enviar_relatorio():
         conteudo_html = _gerar_html_email(boletim_texto)
         
         # 7. Gerar assunto com período
-        data_inicio, data_fim = _gerar_periodo_boletim()
-        assunto = f"Boletim Corporativo {data_inicio} a {data_fim}"
+        data_inicio_fmt, data_fim_fmt = data_inicio_obj.strftime("%d/%m/%Y"), data_fim_obj.strftime("%d/%m/%Y")
+        assunto = f"Boletim semanal {data_inicio_fmt} a {data_fim_fmt}"
 
         # 8. Enviar email
         print(f"📤 Enviando email para {len(destinatarios)} destinatário(s)...")
-        resultado = enviar_email(destinatarios, assunto, conteudo_html)
+        resultado = enviar_email(destinatarios, assunto, conteudo_html)      
 
         if resultado["status"] == "erro":
             raise HTTPException(status_code=500, detail=resultado["mensagem"])
