@@ -125,7 +125,7 @@ def criar_usuario(request: CriarUsuario):
 
 
 # Rota para enviar pergunta
-@router.post("/enviar-pergunta", response_model=PerguntaComResposta)
+@router.post("/enviar-pergunta")
 def enviar_pergunta(
     pergunta: PerguntaCreate,
     db: NeonDB = Depends(get_db),
@@ -169,7 +169,7 @@ def enviar_pergunta(
         return {
             "success": True,
             "pergunta": result["pergunta"],
-            "resposta": resposta_texto
+            "mensagem": resposta_texto
         }
     
     except Exception as e:
@@ -182,5 +182,5 @@ def enviar_pergunta(
         return {
             "success": True,
             "pergunta": result["pergunta"],
-            "resposta": f"Erro ao processar: {str(e)}"
+            "mensagem": f"Erro ao processar: {str(e)}"
         }
