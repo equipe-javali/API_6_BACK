@@ -325,11 +325,7 @@ SELECT"""
             
         except Exception as e:
             print(f"Erro: {str(e)}")
-            return f"Desculpe, ocorreu um erro ao processar sua pergunta: {str(e)}"
-            
-        except Exception as e:
-            print(f"Erro: {str(e)}")
-            return f"Desculpe, ocorreu um erro ao processar sua pergunta: {str(e)}"
+            return f"Desculpe, ocorreu um erro ao processar sua pergunta: {str(e)}"                    
 
 if __name__ == "__main__":
     agent = AgentService()

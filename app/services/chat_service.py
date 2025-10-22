@@ -75,19 +75,27 @@ class ChatService:
             
             print(f"[Chat] Resposta gerada: '{resposta}'")
             
-            # 8. Salvar no banco
+            # 8. Salvar no banco como mensagem da IA
             saved_id = self._salvar_resposta(user_id, pergunta, resposta, db)
             
-            conversation = ConversationModel(
-                user_id=user_id,
-                pergunta=pergunta,
-                resposta=resposta
-            )
-            conversation.id = saved_id
+            # Criar objeto de resposta no formato mensagem
+            mensagem = {
+                "id": saved_id,
+                "id_usuario": user_id,
+                "mensagem": resposta,
+                "ia": True,
+                "envio": "agora"  # Será formatado pelo cliente
+            }
             
             return {
                 "success": True,
-                "conversation": conversation.to_dict()
+                "conversation": {
+                    "id": saved_id,
+                    "user_id": user_id,
+                    "pergunta": pergunta,
+                    "resposta": resposta
+                },
+                "mensagem": mensagem
             }
             
         except Exception as e:
@@ -106,6 +114,12 @@ class ChatService:
                     "user_id": user_id,
                     "pergunta": pergunta,
                     "resposta": resposta
+                },
+                "mensagem": {
+                    "id_usuario": user_id,
+                    "mensagem": resposta,
+                    "ia": True,
+                    "envio": "agora"
                 }
             }
     
@@ -115,45 +129,40 @@ class ChatService:
             # Resetar transações anteriores
             db.execute("ROLLBACK")
             
-            # Verifica se a tabela existe
-            tabela_existe = db.fetchone(
-                """
-                SELECT EXISTS (
-                    SELECT FROM information_schema.tables 
-                    WHERE table_name = 'conversation'
-                )
-                """
-            )
-            
-            # Se a tabela não existe, cria-a
-            if not tabela_existe or not tabela_existe[0]:
-                print("[KNN] Criando tabela conversation...")
-                db.execute("""
-                CREATE TABLE IF NOT EXISTS conversation (
-                    id SERIAL PRIMARY KEY,
-                    user_id INTEGER NOT NULL,
-                    pergunta TEXT NOT NULL,
-                    resposta TEXT NOT NULL,
-                    timestamp TIMESTAMP DEFAULT NOW()
-                )
-                """)
-                db.commit()
-                return []
-            
+            # Buscar pares de perguntas e respostas
+            # Lógica: busca mensagens de usuário (ia=False) e correlaciona com próximas mensagens da IA (ia=True)
             resultados = db.fetchall(
                 """
-                SELECT pergunta, resposta, timestamp
-                FROM conversation
-                WHERE user_id = %s
-                ORDER BY timestamp DESC
-                LIMIT %s
+                WITH pares AS (
+                    SELECT 
+                        m1.id as pergunta_id,
+                        m1.mensagem as pergunta,
+                        m1.envio as timestamp,
+                        (
+                            SELECT m2.mensagem 
+                            FROM mensagem m2 
+                            WHERE m2.id_usuario = m1.id_usuario 
+                            AND m2.ia = TRUE 
+                            AND m2.envio > m1.envio
+                            ORDER BY m2.envio ASC
+                            LIMIT 1
+                        ) as resposta
+                    FROM mensagem m1
+                    WHERE m1.id_usuario = %s 
+                    AND m1.ia = FALSE
+                    ORDER BY m1.envio DESC
+                    LIMIT %s
+                )
+                SELECT pergunta, resposta, timestamp FROM pares
+                WHERE resposta IS NOT NULL
                 """,
-                [user_id, limite]
+                [user_id, limite * 2]  # Buscamos mais do que o limite para garantir que teremos pares completos
             )
             
             if resultados:
-                historico = [{"pergunta": row[0], "resposta": row[1], "timestamp": str(row[2])} for row in resultados]
-                print(f"[KNN] Histórico do usuário {user_id}: {len(historico)} registros encontrados")
+                historico = [{"pergunta": row[0], "resposta": row[1], "timestamp": str(row[2])} for row in resultados if row[1] is not None]
+                historico = historico[:limite]  # Limitamos ao número solicitado
+                print(f"[KNN] Histórico do usuário {user_id}: {len(historico)} pares pergunta-resposta encontrados")
                 return historico
             
             print(f"[KNN] Nenhum histórico encontrado para usuário {user_id}")
@@ -394,22 +403,23 @@ class ChatService:
         return contexto + contexto_knn
     
     def _salvar_resposta(self, user_id: int, pergunta: str, resposta: str, db: NeonDB) -> int:
-        """Salva a pergunta e resposta no banco de dados"""
+        """Salva a resposta da IA na tabela mensagem"""
         try:
             # Resetar transações anteriores
             db.execute("ROLLBACK")
             
+            # Salvar a resposta da IA (a pergunta já foi salva pelo UserService)
             result = db.fetchone(
                 """
-                INSERT INTO conversation (user_id, pergunta, resposta, timestamp)
+                INSERT INTO mensagem (id_usuario, mensagem, ia, envio)
                 VALUES (%s, %s, %s, NOW())
                 RETURNING id
                 """,
-                [user_id, pergunta, resposta]
+                [user_id, resposta, True]  # True para indicar que é uma mensagem da IA
             )
             
             db.commit()
-            print(f"[Chat] Resposta salva com ID: {result[0] if result else 'erro'}")
+            print(f"[Chat] Resposta IA salva com ID: {result[0] if result else 'erro'}")
             return result[0] if result else None
             
         except Exception as e:
@@ -495,6 +505,6 @@ RESPOSTA:"""
         
         return {
             "pergunta": pergunta,
-            "com_knn": resultado_com_knn["conversation"]["resposta"],
-            "sem_knn": resultado_sem_knn["conversation"]["resposta"]
+            "com_knn": resultado_com_knn["mensagem"]["mensagem"],
+            "sem_knn": resultado_sem_knn["mensagem"]["mensagem"]
         }

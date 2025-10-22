@@ -3,7 +3,7 @@ from typing import List
 from pydantic import BaseModel
 from datetime import datetime
 from db.neon_db import NeonDB, get_db
-from models.user import PerguntaComResposta, User, UserRead, StatusBoletimRequest, PerguntaCreate, Pergunta
+from models.user import User, UserRead, StatusBoletimRequest, PerguntaCreate
 from services.user_service import UserService
 from services.mensagem_service import MensagemService
 from routes.auth import get_current_active_user
@@ -20,10 +20,6 @@ router = APIRouter(
 # Instância do serviço
 user_service = UserService()
 chat_service = ChatService()
-
-
-
-
 mensagem_service = MensagemService()
 
 class CriarUsuario(BaseModel):
@@ -123,6 +119,31 @@ def criar_usuario(request: CriarUsuario):
         print(f"[Rota /usuario] Erro: {e}")
         raise HTTPException(status_code=500, detail="Erro ao criar usuário")
 
+@router.get("/mensagens/{user_id}")
+def historico_mensagens(
+    user_id: int,
+    db: NeonDB = Depends(get_db)
+):
+    """Lista o histórico de mensagens de um usuário (requer autenticação)"""
+    try:
+        mensagens = mensagem_service.get_mensagens(user_id, db)
+        return mensagens
+    except Exception as e:
+        print(f"[Rota /mensagens/{{user_id}}] Erro: {e}")
+        raise HTTPException(status_code=500, detail="Erro ao buscar usuário")
+
+@router.get("/tipo/{user_id}")
+def tipo_usuario(
+    user_id: int,
+    db: NeonDB = Depends(get_db)
+):
+    """Retorna o tipo do usuário (requer autenticação)"""
+    try:
+        user = user_service.get_user(user_id, db)
+        return user
+    except Exception as e:
+        print(f"[Rota /tipo/{{user_id}}] Erro: {e}")
+        raise HTTPException(status_code=500, detail="Erro ao buscar usuário")
 
 # Rota para enviar pergunta
 @router.post("/enviar-pergunta")
