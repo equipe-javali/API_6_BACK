@@ -1,6 +1,7 @@
 from db.neon_db import NeonDB  
 from services.auth_service import get_password_hash  
 from typing import List, Dict, Any, Optional
+import traceback
 
 class UserService:
     """Serviço para gerenciar usuários"""
@@ -144,6 +145,48 @@ class UserService:
                     "recebe_boletim": recebe_boletim
                 }
             }
+
+    def enviar_pergunta(self, id_usuario: int, mensagem: str, ia: bool, db: NeonDB) -> Dict[str, Any]:
+        """
+        Persiste uma pergunta no banco e retorna o registro criado.
+        """
+        try:
+            try:
+                test = db.fetchone("SELECT 1", None)
+                print(f"[UserService.enviar_pergunta] Test DB SELECT 1 retornou: {test}")
+            except Exception as e_test:
+                print(f"[UserService.enviar_pergunta] Falha no teste DB: {e_test}")
+
+            print("[UserService.enviar_pergunta] Tabela 'mensagem' assumida existente; prosseguindo com INSERT")
+            print("[UserService.enviar_pergunta] Executando INSERT na tabela mensagem (sem id)...")
+            
+            row = db.fetchone(
+                "INSERT INTO mensagem (id_usuario, mensagem, ia, envio) VALUES (%s, %s, %s, NOW()) RETURNING id, envio",
+                [id_usuario, mensagem, ia]
+            )
+            print(f"[UserService.enviar_pergunta] Resultado do INSERT (row): {row}")
+            db.commit()
+
+            if not row:
+                print("[UserService.enviar_pergunta] INSERT não retornou row")
+                return {"success": False, "message": "Falha ao inserir pergunta"}
+
+            print(f"[UserService.enviar_pergunta] Pergunta salva com id={row[0]}, envio={row[1]}")
+            return {
+                "success": True,
+                "pergunta": {
+                    "id": row[0],
+                    "id_usuario": id_usuario,
+                    "mensagem": mensagem,
+                    "ia": ia,
+                    "envio": row[1]
+                }
+            }
+        except Exception as e:
+            # Log completo com traceback e retorna erro
+            print(f"[UserService.enviar_pergunta] Erro ao salvar pergunta: {e}")
+            traceback.print_exc()
+            return {"success": False, "message": str(e)}
 
     
     
