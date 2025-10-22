@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from db.neon_db import NeonDB, get_db
 from models.user import User, UserRead, StatusBoletimRequest, PerguntaCreate, Pergunta
 from services.user_service import UserService
+from services.mensagem_service import MensagemService
 from routes.auth import get_current_active_user
 
 router = APIRouter(
@@ -15,6 +16,7 @@ router = APIRouter(
 
 # Instância do serviço
 user_service = UserService()
+mensagem_service = MensagemService()
 
 from datetime import datetime
 
