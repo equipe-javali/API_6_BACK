@@ -117,52 +117,118 @@ class AgentService:
         self._cache.clear()
     
     def generate_sql(self, pergunta: str, contexto: str) -> str:
-        """Gera query SQL baseada em mapeamento seguro (sem IA)"""
+        """Gera query SQL baseada na pergunta e contexto"""
         
+        schema_info = """
+ESQUEMA DAS TABELAS:
+
+ESTOQUE:
+- data (date): Data do registro
+- cod_cliente (int): Código do cliente  
+- es_centro (text): Centro
+- tipo_material (text): Tipo do material
+- origem (text): Origem
+- cod_produto (text): Código do produto
+- lote (text): Lote
+- dias_em_estoque (int): Dias em estoque
+- produto (text): Nome do produto (ex: Bobina, Rolo, Chapa, Tira)
+- grupo_mercadoria (text): Grupo da mercadoria (ex: Laminado a Frio, Zincado)
+- es_totalestoque (decimal): Valor numérico em es_totalestoque
+- SKU (text): SKU do produto
+
+FATURAMENTO:
+- data (date): Data do faturamento
+- cod_cliente (int): Código do cliente
+- lote (text): Lote
+- origem (text): Origem
+- zs_gr_mercad (text): Grupo mercadoria
+- produto (text): Nome do produto
+- cod_produto (text): Código do produto
+- zs_centro (text): Centro
+- zs_cidade (text): Cidade
+- zs_uf (text): UF/Estado
+- zs_peso_liquido (decimal): Peso líquido numérico
+- giro_sku_cliente (decimal): Valor de giro numérico
+- SKU (text): SKU do produto
+"""
+        
+        prompt = f"""<start_of_turn>user
+Você é um especialista em SQL PostgreSQL. Gere APENAS a query SQL para responder à pergunta factual sobre os dados.
+
+{schema_info}
+
+PERGUNTA: {pergunta}
+
+REGRAS IMPORTANTES:
+- Use APENAS as tabelas "estoque" e "faturamento" (em minúsculas)
+- Para "maior es_totalestoque" use ORDER BY es_totalestoque DESC LIMIT 1
+- Para "todos os produtos" use SELECT DISTINCT produto FROM estoque
+- Para "quantos registros" use COUNT(*)
+- Para "soma" use SUM()
+- Nomes de colunas exatos: es_totalestoque, zs_peso_liquido, etc.
+- Sempre use LIMIT quando apropriado
+
+Gere APENAS a query SQL:
+<end_of_turn>
+<start_of_turn>model
+SELECT"""
+        
+        input_ids = self.tokenizer(prompt, return_tensors="pt", truncation=True, max_length=2048)
+        input_ids = {k: v.to(self.device) for k, v in input_ids.items()}
+
+        with torch.no_grad():
+            outputs = self.model.generate(
+                **input_ids,
+                max_new_tokens=100,
+                temperature=0.1,  # Mais determinístico
+                do_sample=True,
+                pad_token_id=self.tokenizer.eos_token_id,
+                eos_token_id=self.tokenizer.eos_token_id
+            )
+        
+        # Decodificar apenas os novos tokens gerados
+        new_tokens = outputs[0][input_ids['input_ids'].shape[1]:]
+        sql_response = self.tokenizer.decode(new_tokens, skip_special_tokens=True)
+        
+        # Limpar a resposta
+        sql_query = sql_response.strip()
+        sql_query = re.sub(r'```sql|```', '', sql_query).strip()
+        
+        # Garantir que começa com SELECT
+        if not sql_query.upper().startswith('SELECT'):
+            sql_query = f"SELECT {sql_query}"
+        
+        # Fallbacks específicos para queries comuns
         pergunta_lower = pergunta.lower()
         
-        # Mapeamento direto de palavras-chave para queries seguras
-        queries_seguras = {
-            # Perguntas sobre produtos
-            'quantos produtos': "SELECT COUNT(DISTINCT produto) as total_produtos FROM estoque",
-            'listar produtos': "SELECT DISTINCT produto FROM estoque ORDER BY produto LIMIT 20",
-            'produtos diferentes': "SELECT DISTINCT produto FROM estoque ORDER BY produto",
-            'quais produtos': "SELECT DISTINCT produto FROM estoque ORDER BY produto LIMIT 20",
-            
-            # Perguntas sobre estoque
-            'maior es_totalestoque': "SELECT produto, es_totalestoque FROM estoque ORDER BY es_totalestoque DESC LIMIT 1",
-            'maior estoque': "SELECT produto, es_totalestoque FROM estoque ORDER BY es_totalestoque DESC LIMIT 1",
-            'menor estoque': "SELECT produto, es_totalestoque FROM estoque ORDER BY es_totalestoque ASC LIMIT 1",
-            'estoque total': "SELECT SUM(es_totalestoque) as total FROM estoque",
-            'total estoque': "SELECT SUM(es_totalestoque) as total FROM estoque",
-            
-            # Perguntas sobre faturamento
-            'quantos registros faturamento': "SELECT COUNT(*) as total_registros FROM faturamento",
-            'quantos faturamentos': "SELECT COUNT(*) as total_registros FROM faturamento",
-            'registros faturamento': "SELECT COUNT(*) as total_registros FROM faturamento",
-            
-            # Perguntas sobre centros
-            'centros': "SELECT DISTINCT es_centro FROM estoque LIMIT 10",
-            'quantos centros': "SELECT COUNT(DISTINCT es_centro) as total FROM estoque",
-            
-            # Perguntas sobre SKUs
-            'quantos skus': "SELECT COUNT(DISTINCT sku) as total FROM estoque",
-            'skus': "SELECT DISTINCT sku FROM estoque LIMIT 20",
-            
-            # Perguntas sobre data
-            'data mais antiga': "SELECT MIN(data) as data_mais_antiga FROM estoque",
-            'data mais recente': "SELECT MAX(data) as data_mais_recente FROM estoque",
-        }
+        if 'maior' in pergunta_lower and 'es_totalestoque' in pergunta_lower:
+            sql_query = "SELECT produto, es_totalestoque FROM estoque ORDER BY es_totalestoque DESC LIMIT 1"
+        elif 'todos os produtos' in pergunta_lower or 'listar produtos' in pergunta_lower:
+            sql_query = "SELECT DISTINCT produto FROM estoque ORDER BY produto"
+        elif 'quantos produtos' in pergunta_lower:
+            if 'faturamento' in pergunta_lower:
+                sql_query = "SELECT COUNT(DISTINCT produto) as total_produtos FROM faturamento"
+            else:
+                sql_query = "SELECT COUNT(DISTINCT produto) as total_produtos FROM estoque"
+        elif 'quantos registros' in pergunta_lower:
+            if 'faturamento' in pergunta_lower:
+                sql_query = "SELECT COUNT(*) as total_registros FROM faturamento"
+            else:
+                sql_query = "SELECT COUNT(*) as total_registros FROM estoque"
+        # Novo: detectar pergunta dupla sobre produtos diferentes
+        elif ('produtos diferentes' in pergunta_lower or 'quais são' in pergunta_lower) and 'quantos' in pergunta_lower:
+            if 'faturamento' in pergunta_lower:
+                sql_query = "SELECT DISTINCT produto FROM faturamento ORDER BY produto"
+            else:
+                sql_query = "SELECT DISTINCT produto FROM estoque ORDER BY produto"
+        # Novo: detectar pergunta sobre data mais antiga
+        elif 'data' in pergunta_lower and ('mais antigos' in pergunta_lower or 'mais antiga' in pergunta_lower):
+            if 'faturamento' in pergunta_lower:
+                sql_query = "SELECT data FROM faturamento ORDER BY data ASC LIMIT 1"
+            else:
+                sql_query = "SELECT data FROM estoque ORDER BY data ASC LIMIT 1"
         
-        # Procurar por match nas palavras-chave
-        for palavra_chave, query_sql in queries_seguras.items():
-            if palavra_chave in pergunta_lower:
-                print(f"[generate_sql] Match encontrado: '{palavra_chave}'")
-                return query_sql
-        
-        # Fallback: query padrão segura
-        print(f"[generate_sql] Nenhum match, usando fallback")
-        return "SELECT DISTINCT produto FROM estoque LIMIT 10"
+        return sql_query.strip()
     
     def format_sql_response(self, pergunta: str, sql_result: list) -> str:
         """Formata resultado SQL de forma factual, sem interpretação"""
@@ -212,14 +278,54 @@ class AgentService:
             sql_query = self.generate_sql(pergunta, contexto)
             print(f"\nSQL gerada: {sql_query}")
             
-            # 2. Executar SQL
-            sql_result = execute_query(sql_query)
-            print(f"Resultado: {sql_result}")
+            # 2. Executar SQL com tratamento de erro
+            try:
+                sql_result = execute_query(sql_query)
+                print(f"Resultado: {sql_result}")
+                
+                # 3. Formatar resposta
+                final_response = self.format_sql_response(pergunta, sql_result)
+                
+                return final_response
+            except Exception as sql_error:
+                print(f"Erro SQL: {str(sql_error)}")
+                
+                pergunta_lower = pergunta.lower()
+                
+                # Fallback para consultas sobre quantidade total em estoque
+                if 'quantidade' in pergunta_lower and 'estoque' in pergunta_lower:
+                    try:
+                        fallback_result = execute_query("SELECT SUM(es_totalestoque) as total FROM estoque")
+                        if fallback_result and len(fallback_result) > 0:
+                            total = fallback_result[0].get('total', 0)
+                            return f"A quantidade total em estoque é: {total}"
+                    except:
+                        pass
+                
+                # NOVO: Fallback para consultas genéricas sobre faturamento
+                elif 'faturamento' in pergunta_lower or 'vendas' in pergunta_lower:
+                    try:
+                        # Total de registros
+                        count_result = execute_query("SELECT COUNT(*) as total FROM faturamento")
+                        # Soma do peso líquido
+                        peso_result = execute_query("SELECT SUM(zs_peso_liquido) as total_peso FROM faturamento")
+                        # Produtos distintos
+                        produtos_result = execute_query("SELECT COUNT(DISTINCT produto) as total_produtos FROM faturamento")
+                        
+                        if count_result and peso_result and produtos_result:
+                            total = count_result[0].get('total', 0)
+                            peso = peso_result[0].get('total_peso', 0)
+                            produtos = produtos_result[0].get('total_produtos', 0)
+                            
+                            return f"Resumo de faturamento: {total} registros, total de peso líquido: {peso}, produtos distintos: {produtos}"
+                    except:
+                        pass
+                
+                return f"Não consegui responder sua pergunta. Tente ser mais específico sobre o que deseja saber."
             
-            # 3. Formatar resposta
-            final_response = self.format_sql_response(pergunta, sql_result)
-            
-            return final_response
+        except Exception as e:
+            print(f"Erro: {str(e)}")
+            return f"Desculpe, ocorreu um erro ao processar sua pergunta: {str(e)}"
             
         except Exception as e:
             print(f"Erro: {str(e)}")
