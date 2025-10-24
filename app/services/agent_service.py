@@ -5,6 +5,8 @@ from typing import Optional, Dict, Any
 from dotenv import load_dotenv
 from db.neon_db import execute_query
 import re
+from decimal import Decimal
+from services.QueryAnalyzer import QueryAnalyzer  # Importar QueryAnalyzer para PLN
 
 load_dotenv()
 
@@ -14,6 +16,7 @@ class AgentService:
         print("AgentService using device:", self.device)
         
         # Usar mesmo modelo do BoletimService para consistência
+        HG_TOKEN = os.getenv("HG_TOKEN")
         if self.device.type == "cuda":
             self.model = AutoModelForCausalLM.from_pretrained(
                 "google/gemma-3-1b-pt",  
@@ -33,6 +36,9 @@ class AgentService:
         # Cache para otimização
         self._cache = {}
         self._cache_max_size = 100
+        
+        # Instanciar QueryAnalyzer para PLN
+        self.query_analyzer = QueryAnalyzer()
     
     def processar_pergunta_simples(self, pergunta: str) -> str:
         """Processa pergunta sem contexto adicional - só IA pura"""
@@ -44,12 +50,12 @@ class AgentService:
         if cache_key in self._cache:
             return self._cache[cache_key]
         
-        prompt = f"""Você é um assistende de análise de dados empresariais. O usuário fez um questionamento:
+        prompt = f"""Você é um assistente de análise de dados empresariais. O usuário fez um questionamento:
         
         PERGUNTA DO USUÁRIO: {pergunta}
 
         Responda de forma clara, objetiva e profissional em português.
-        Se não for uma pergunta rotorne: Faça uma pergunta válida.
+        Se não for uma pergunta retorne: Faça uma pergunta válida.
         Se a pergunta não for sobre análise de dados empresariais responda: Não domino esse assunto, faça outra pergunta.
         """
         
@@ -88,37 +94,116 @@ class AgentService:
         except Exception as e:
             return f"Erro ao processar pergunta: {str(e)}"
     
+   
     def _generate_response(self, prompt: str) -> str:
-        """Gera resposta usando o modelo de IA"""
-        input_ids = self.tokenizer(prompt, return_tensors="pt")
-        input_ids = {k: v.to(self.device) for k, v in input_ids.items()}
-
-        with torch.no_grad():
-            outputs = self.model.generate(
-                **input_ids, 
-                max_new_tokens=512,
-                temperature=0.7,
-                do_sample=True,
-                pad_token_id=self.tokenizer.eos_token_id
-            )
-        
-        output_str = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-        
-        # Limpar prompt da resposta
-        if prompt in output_str:
+        """Gera resposta com limpeza aprimorada para remover lixo"""
+        try:
+            input_ids = self.tokenizer(prompt, return_tensors="pt", truncation=True, max_length=512)
+            input_ids = {k: v.to(self.device) for k, v in input_ids.items()}
+    
+            with torch.no_grad():
+                outputs = self.model.generate(
+                    **input_ids, 
+                    max_new_tokens=30,
+                    temperature=0.1,
+                    do_sample=False,
+                    repetition_penalty=2.0,
+                    pad_token_id=self.tokenizer.eos_token_id,
+                    eos_token_id=self.tokenizer.eos_token_id
+                )
+            
+            output_str = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+            
+            # Limpeza aprimorada: remover prompt, HTML, repetições e lixo
             response = output_str.replace(prompt, "").strip()
-        else:
-            response = output_str.strip()
+            response = re.sub(r'Responda de forma.*?:\s*', '', response, flags=re.IGNORECASE)
+            response = re.sub(r'Resposta:\s*', '', response, flags=re.IGNORECASE)
+            response = re.sub(r'- ".*?"', '', response).strip()
+            response = re.sub(r'<[^>]+>', '', response).strip()  # Remover HTML
+            response = re.sub(r'\*+', '', response).strip()  # Remover asteriscos
+            
+            # Detectar e remover repetições
+            words = response.split()
+            if len(words) > 4:
+                half_len = len(words) // 2
+                if words[:half_len] == words[half_len:half_len*2]:
+                    response = ' '.join(words[:half_len])
+            
+            response = re.sub(r'(\b\w+\b)(\s+\1)+', r'\1', response)
+            
+            # Limitar tamanho
+            if len(response) > 150:
+                response = response[:147] + "..."
+            
+            print(f"[DEBUG IA] Resposta limpa: '{response}' (len: {len(response)})")
+            return response if response else "Não foi possível gerar uma resposta adequada."
         
-        return response if response else "Não foi possível gerar uma resposta adequada."
+        except Exception as e:
+            print(f"[ERRO IA] Falha na geração: {e}")
+            return "Erro na geração de resposta IA."
     
     def clear_cache(self):
         """Limpa o cache de respostas"""
         self._cache.clear()
     
-    def generate_sql(self, pergunta: str, contexto: str) -> str:
-        """Gera query SQL baseada na pergunta e contexto"""
+   
+    def generate_sql(self, pergunta: str, contexto: str, analise: dict = None) -> str:
+        """Gera SQL com filtros temporais garantidos"""
+        if analise is None:
+            analise = self.query_analyzer.analyze_query(pergunta)
         
+        filters = analise.get("filters", {})
+        focus = analise.get("focus", [])
+        
+        print(f"[DEBUG AgentService] Filtros PLN recebidos: {filters}")
+        
+        # Determinar tabela
+        if "faturamento" in focus or "vendas" in pergunta.lower() or "faturamento" in pergunta.lower():
+            tabela = "faturamento"
+            coluna_soma = "zs_peso_liquido"  # Nota: Se for valor monetário, ajustar coluna
+            coluna_data = "data"
+        else:
+            tabela = "estoque"
+            coluna_soma = "es_totalestoque"
+            coluna_data = "data"
+        
+        base_query = f"SELECT SUM({coluna_soma}) as total FROM {tabela}"
+        
+        conditions = []
+        
+        # Filtros temporais (prioridade alta)
+        if "data_inicio" in filters and "data_fim" in filters:
+            conditions.append(f"{coluna_data} >= '{filters['data_inicio']}' AND {coluna_data} < '{filters['data_fim']}'")
+            print(f"[DEBUG AgentService] Aplicando filtro temporal: {filters['data_inicio']} a {filters['data_fim']}")
+        
+        # Filtros de produtos
+        if "produtos" in filters and filters["produtos"]:
+            produto_conditions = []
+            for produto in filters["produtos"]:
+                produto_conditions.append(f"LOWER(produto) LIKE '%{produto}%'")
+            if produto_conditions:
+                conditions.append(f"({' OR '.join(produto_conditions)})")
+        
+        # Filtros de SKUs
+        if "skus" in filters and filters["skus"]:
+            sku_conditions = []
+            for sku in filters["skus"]:
+                sku_conditions.append(f"UPPER(SKU) LIKE '%{sku.upper()}%'")
+            if sku_conditions:
+                conditions.append(f"({' OR '.join(sku_conditions)})")
+        
+        if conditions:
+            base_query += " WHERE " + " AND ".join(conditions)
+            print(f"[DEBUG AgentService] Query final: {base_query}")
+        else:
+            print("[DEBUG AgentService] Nenhum filtro aplicado")
+        
+        return base_query
+    
+    # ...existing code...
+    
+    def _generate_sql_with_ai(self, pergunta: str, contexto: str) -> str:
+        """Fallback: Gera SQL usando IA (método original)"""
         schema_info = """
 ESQUEMA DAS TABELAS:
 
@@ -198,9 +283,8 @@ SELECT"""
         if not sql_query.upper().startswith('SELECT'):
             sql_query = f"SELECT {sql_query}"
         
-        # Fallbacks específicos para queries comuns
+        # Fallbacks específicos
         pergunta_lower = pergunta.lower()
-        
         if 'maior' in pergunta_lower and 'es_totalestoque' in pergunta_lower:
             sql_query = "SELECT produto, es_totalestoque FROM estoque ORDER BY es_totalestoque DESC LIMIT 1"
         elif 'todos os produtos' in pergunta_lower or 'listar produtos' in pergunta_lower:
@@ -215,47 +299,63 @@ SELECT"""
                 sql_query = "SELECT COUNT(*) as total_registros FROM faturamento"
             else:
                 sql_query = "SELECT COUNT(*) as total_registros FROM estoque"
-        # Novo: detectar pergunta dupla sobre produtos diferentes
-        elif ('produtos diferentes' in pergunta_lower or 'quais são' in pergunta_lower) and 'quantos' in pergunta_lower:
-            if 'faturamento' in pergunta_lower:
-                sql_query = "SELECT DISTINCT produto FROM faturamento ORDER BY produto"
-            else:
-                sql_query = "SELECT DISTINCT produto FROM estoque ORDER BY produto"
-        # Novo: detectar pergunta sobre data mais antiga
-        elif 'data' in pergunta_lower and ('mais antigos' in pergunta_lower or 'mais antiga' in pergunta_lower):
-            if 'faturamento' in pergunta_lower:
-                sql_query = "SELECT data FROM faturamento ORDER BY data ASC LIMIT 1"
-            else:
-                sql_query = "SELECT data FROM estoque ORDER BY data ASC LIMIT 1"
         
         return sql_query.strip()
     
-    def format_sql_response(self, pergunta: str, sql_result: list) -> str:
-        """Formata resultado SQL de forma factual, sem interpretação"""
+    def format_sql_response(self, pergunta: str, sql_result: list, contexto: str = "", analise: dict = None) -> str:
+        """Formata resultado SQL usando PLN e contexto"""
         if not sql_result:
             return "Nenhum resultado encontrado para esta consulta."
         
         pergunta_lower = pergunta.lower()
+        pergunta_normalizada = self.query_analyzer._normalize_text(pergunta_lower)
         
-        # Respostas factuais específicas
-        if 'maior' in pergunta_lower and 'es_totalestoque' in pergunta_lower:
+        if analise is None:
+            analise = self.query_analyzer.analyze_query(pergunta)
+        filters = analise.get("filters", {})
+
+        # Tenta usar o produto identificado pelo PLN
+        produto = None
+        if "produtos" in filters and filters["produtos"]:
+            produto = filters["produtos"][0]
+        else:
+            # Se não encontrou pelo PLN, tenta pegar do resultado SQL
+            if sql_result and "produto" in sql_result[0]:
+                produto = sql_result[0]["produto"]
+
+        # Para perguntas sobre quantidade/estoque
+        if ('quantidade' in pergunta_normalizada or 'estoque' in pergunta_normalizada or 'total' in pergunta_normalizada):
+            if produto:
+                total = sql_result[0].get('total', 0)
+                if isinstance(total, Decimal):
+                    total = float(total)
+                return f"A quantidade de {produto} em estoque é de {total:,.2f} unidades."
+        
+        # Para perguntas sobre faturamento
+        if 'faturamento' in pergunta_normalizada or 'vendas' in pergunta_normalizada:
+            if sql_result and len(sql_result) > 0:
+                total = sql_result[0].get('total', 0)
+                if isinstance(total, Decimal):
+                    total = float(total)
+                periodo = ""
+                if 'mes' in filters and 'ano' in filters:
+                    mes_nome = list(self.query_analyzer.meses.keys())[filters['mes'] - 1]
+                    periodo = f"no mês de {mes_nome} de {filters['ano']}"
+                return f"O faturamento {periodo} foi de R$ {total:,.2f}."         
+        
+        # Respostas factuais específicas (mantidas do original)
+        if 'maior' in pergunta_normalizada and 'es_totalestoque' in pergunta_normalizada:
             if sql_result and len(sql_result) > 0:
                 item = sql_result[0]
                 produto = item.get('produto', 'N/A')
                 valor = item.get('es_totalestoque', 0)
                 return f"Produto: {produto}, es_totalestoque: {valor}"
         
-        elif 'todos os produtos' in pergunta_lower or 'listar produtos' in pergunta_lower:
+        elif 'todos os produtos' in pergunta_normalizada or 'listar produtos' in pergunta_normalizada:
             produtos = [item.get('produto', 'N/A') for item in sql_result]
             return f"Produtos encontrados: {', '.join(produtos[:10])}" + ("..." if len(produtos) > 10 else "")
         
-        # Novo: lidar com pergunta dupla sobre produtos diferentes
-        elif ('produtos diferentes' in pergunta_lower or 'quais são' in pergunta_lower) and 'quantos' in pergunta_lower:
-            produtos = [item.get('produto', 'N/A') for item in sql_result]
-            total = len(produtos)
-            return f"Total: {total} produtos diferentes. São eles: {', '.join(produtos)}"
-        
-        elif 'quantos' in pergunta_lower:
+        elif 'quantos' in pergunta_normalizada:
             if sql_result and len(sql_result) > 0:
                 total = sql_result[0].get('total_produtos') or sql_result[0].get('total_registros') or sql_result[0].get('count', 0)
                 return f"Total: {total}"
@@ -271,61 +371,127 @@ SELECT"""
             campos = [f"{k}: {v}" for k, v in primeiro.items()]
             return f"Encontrados {total} registros. Primeiro: {', '.join(campos)}"
     
-    def process_input(self, pergunta: str, contexto: str) -> str:
-        """Método principal que integra SQL + IA"""
+    def process_input(self, pergunta: str, contexto: str, analise: dict = None) -> str:
+        """Método principal que integra SQL + IA + PLN para respostas conversacionais"""
         try:
-            # 1. Gerar SQL
-            sql_query = self.generate_sql(pergunta, contexto)
+            # 1. Gerar SQL usando PLN
+            sql_query = self.generate_sql(pergunta, contexto, analise=analise)
             print(f"\nSQL gerada: {sql_query}")
             
-            # 2. Executar SQL com tratamento de erro
-            try:
-                sql_result = execute_query(sql_query)
-                print(f"Resultado: {sql_result}")
-                
-                # 3. Formatar resposta
-                final_response = self.format_sql_response(pergunta, sql_result)
-                
-                return final_response
-            except Exception as sql_error:
-                print(f"Erro SQL: {str(sql_error)}")
-                
-                pergunta_lower = pergunta.lower()
-                
-                # Fallback para consultas sobre quantidade total em estoque
-                if 'quantidade' in pergunta_lower and 'estoque' in pergunta_lower:
-                    try:
-                        fallback_result = execute_query("SELECT SUM(es_totalestoque) as total FROM estoque")
-                        if fallback_result and len(fallback_result) > 0:
-                            total = fallback_result[0].get('total', 0)
-                            return f"A quantidade total em estoque é: {total}"
-                    except:
-                        pass
-                
-                # NOVO: Fallback para consultas genéricas sobre faturamento
-                elif 'faturamento' in pergunta_lower or 'vendas' in pergunta_lower:
-                    try:
-                        # Total de registros
-                        count_result = execute_query("SELECT COUNT(*) as total FROM faturamento")
-                        # Soma do peso líquido
-                        peso_result = execute_query("SELECT SUM(zs_peso_liquido) as total_peso FROM faturamento")
-                        # Produtos distintos
-                        produtos_result = execute_query("SELECT COUNT(DISTINCT produto) as total_produtos FROM faturamento")
-                        
-                        if count_result and peso_result and produtos_result:
-                            total = count_result[0].get('total', 0)
-                            peso = peso_result[0].get('total_peso', 0)
-                            produtos = produtos_result[0].get('total_produtos', 0)
-                            
-                            return f"Resumo de faturamento: {total} registros, total de peso líquido: {peso}, produtos distintos: {produtos}"
-                    except:
-                        pass
-                
-                return f"Não consegui responder sua pergunta. Tente ser mais específico sobre o que deseja saber."
+            # 2. Executar SQL
+            sql_result = execute_query(sql_query)
+            print(f"Resultado SQL: {sql_result}")
+            
+            # 3. Formatar resposta conversacional usando IA
+            final_response = self._generate_conversational_response(pergunta, sql_result, contexto, analise)
+            
+            return final_response
             
         except Exception as e:
             print(f"Erro: {str(e)}")
-            return f"Desculpe, ocorreu um erro ao processar sua pergunta: {str(e)}"                    
+            return f"Desculpe, ocorreu um erro ao processar sua pergunta: {str(e)}"
+ 
+    
+    def _generate_conversational_response(self, pergunta: str, sql_result: list, contexto: str, analise: dict = None) -> str:
+        """Gera resposta conversacional otimizada"""
+        if not sql_result:
+            return "Não encontrei dados relevantes para sua pergunta nos registros disponíveis."
+        
+        if analise is None:
+            analise = self.query_analyzer.analyze_query(pergunta)
+    
+        filters = analise.get("filters", {})
+    
+        # Preparar dados concisos
+        dados_extraidos = self._format_sql_for_ai(sql_result, filters)
+    
+        # Prompt mais direto e conversacional
+        prompt = f"""Você é um assistente de dados empresariais amigável.
+    
+    Pergunta: {pergunta}
+    
+    Dados encontrados: {dados_extraidos}
+    
+    Responda de forma natural e direta em português, mencionando os números exatos de forma clara."""
+    
+        try:
+            response = self._generate_response(prompt)
+            if response and len(response) <= 100 and not any(word in response.lower() for word in ['responda', 'resposta']):
+                return response.strip()
+            else:
+                # Fallback para formatação estruturada
+                return self._format_fallback_response(pergunta, sql_result, filters)
+        except Exception as e:
+            print(f"[ERRO Conversacional] {e}")
+            return self._format_fallback_response(pergunta, sql_result, filters)
+    
+    def _format_fallback_response(self, pergunta: str, sql_result: list, filters: dict) -> str:
+        """Fallback conversacional com unidades corretas"""
+        pergunta_lower = pergunta.lower()
+        
+        if 'produtos' in filters and filters['produtos']:
+            produto = filters['produtos'][0]
+            if sql_result and len(sql_result) > 0:
+                total = sql_result[0].get('total', 0)
+                if isinstance(total, Decimal):
+                    total = float(total)
+                return f"Atualmente temos {total:,.2f} unidades de {produto} em estoque."
+        
+        if 'faturamento' in pergunta_lower or 'vendas' in pergunta_lower:
+            if sql_result and len(sql_result) > 0:
+                total = sql_result[0].get('total', 0)
+                if isinstance(total, Decimal):
+                    total = float(total)
+                periodo = ""
+                if 'periodo' in filters:
+                    periodo = f" no período de {filters['periodo']}"
+                elif 'mes' in filters and 'ano' in filters:
+                    mes_nome = list(self.query_analyzer.meses.keys())[filters['mes'] - 1]
+                    periodo = f" em {mes_nome} de {filters['ano']}"
+                return f"O faturamento{periodo} foi de R$ {total:,.2f}."  # Corrigido para R$
+        
+        # Genérico
+        if sql_result and len(sql_result) > 0 and 'total' in sql_result[0]:
+            total = sql_result[0]['total']
+            if isinstance(total, Decimal):
+                total = float(total)
+            # Determinar unidade baseada na tabela
+            unidade = "R$" if 'faturamento' in pergunta_lower else "unidades"
+            return f"O valor encontrado foi de {unidade} {total:,.2f}."
+
+
+    def _format_sql_for_ai(self, sql_result: list, filters: dict) -> str:
+        """Formata resultado SQL para input da IA"""
+        if not sql_result:
+            return "Nenhum dado encontrado."
+        
+        formatted = ""
+        
+        # Informações sobre filtros aplicados
+        if filters:
+            filter_info = []
+            if 'produtos' in filters:
+                filter_info.append(f"Produtos filtrados: {', '.join(filters['produtos'])}")
+            if 'data_inicio' in filters and 'data_fim' in filters:
+                filter_info.append(f"Período: {filters['data_inicio']} a {filters['data_fim']}")
+            if 'skus' in filters:
+                filter_info.append(f"SKUs: {', '.join(filters['skus'])}")
+            
+            if filter_info:
+                formatted += f"Filtros aplicados: {'; '.join(filter_info)}\n\n"
+        
+        # Dados numéricos
+        if len(sql_result) == 1 and 'total' in sql_result[0]:
+            total = sql_result[0]['total']
+            if isinstance(total, Decimal):
+                total = float(total)
+            formatted += f"Valor total encontrado: {total:,.2f}"
+        else:
+            formatted += f"Registros encontrados: {len(sql_result)}\n"
+            for i, row in enumerate(sql_result[:5]):  # Limitar a 5 registros
+                formatted += f"Registro {i+1}: {', '.join([f'{k}: {v}' for k, v in row.items()])}\n"
+        
+        return formatted
 
 if __name__ == "__main__":
     agent = AgentService()

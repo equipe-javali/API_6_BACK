@@ -185,7 +185,7 @@ def enviar_pergunta(
         print(f"[Rota enviar_pergunta] Resposta gerada com sucesso")
         
         # 3. Retornar resultado completo (pergunta + resposta)
-        resposta_texto = result_resposta["conversation"]["resposta"]
+        resposta_texto = result_resposta["mensagem"]["mensagem"]
         
         return {
             "success": True,
