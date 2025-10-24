@@ -32,6 +32,9 @@ class QueryAnalyzer:
         analise_score = sum(1 for keyword in self.analise_keywords 
                            if keyword in pergunta_lower)
         
+        if estoque_score + faturamento_score + analise_score == 0:
+            return
+        
         # Determinar foco principal
         query_focus = []
         if estoque_score > 0:
