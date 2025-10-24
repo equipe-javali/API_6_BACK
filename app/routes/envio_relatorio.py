@@ -14,6 +14,8 @@ from models.faturamento_model import FaturamentoModel
 
 router = APIRouter()
 
+# iniciar o relatório semanal por período 
+
 
 def _gerar_periodo_boletim() -> tuple[str, str]:
     """Gera o período do boletim (últimas 52 semanas)"""
