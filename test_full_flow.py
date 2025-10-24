@@ -43,11 +43,14 @@ def main():
         perguntas_teste = testar_perguntas_factuais()
         
         for i, pergunta in enumerate(perguntas_teste, 1):
-            print(f"\n--- TESTE {i}/5 ---")
+            print(f"\n--- TESTE {i}/{len(perguntas_teste)} ---")
             print(f"Pergunta: {pergunta}")
             
             try:
                 foco = query_analyzer.analyze_query(pergunta)
+                if not foco:
+                    print("❌ Resposta: Desculpe, eu só respondo perguntas relacionadas ao dataset de estoque e faturamento.")
+                    continue
                 contexto = context_service.generate_context(foco['focus'])
                 resposta = agent_service.process_input(pergunta, contexto)
                 print(f"✅ Resposta: {resposta}")
@@ -75,7 +78,11 @@ def main():
             try:
                 # 3. Analisar pergunta
                 print("🔍 Analisando pergunta...")
-                foco = query_analyzer.analyze_query(pergunta)  # Corrigido aqui - use analyze_query
+                foco = query_analyzer.analyze_query(pergunta)
+                if not foco:
+                    print("❌ Resposta: Desculpe, eu só respondo perguntas relacionadas ao dataset de estoque e faturamento.")
+                    continue
+                # Corrigido aqui - use analyze_query
                 print(f"   📋 Foco detectado: {foco}")
                 
                 # 4. Gerar contexto
