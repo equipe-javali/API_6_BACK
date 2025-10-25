@@ -98,7 +98,7 @@ def _gerar_html_email(boletim_texto: str, data_inicio: datetime, data_fim: datet
                 <p class="periodo">Período de análise: {data_inicio} a {data_fim}</p>
             </div>
             <div class="conteudo">
-{boletim_texto}
+                {boletim_texto}
             </div>
             <div class="footer">
                 <p>Boletim Corporativo gerado automaticamente | {datetime.now().strftime("%d/%m/%Y %H:%M")}</p>
@@ -179,12 +179,12 @@ def enviar_relatorio():
         boletim_texto = boletim_service.gerar_str_boletim(dados_boletim)
         print(f"✅ Boletim gerado ({len(boletim_texto)} caracteres)")
 
-        # 6. Criar HTML formatado
-        conteudo_html = _gerar_html_email(boletim_texto, data_inicio, data_fim)
-        
-        # 7. Gerar assunto com período
+        # 6. Gerar assunto com período
         data_inicio, data_fim = _gerar_periodo_boletim()
         assunto = f"Boletim Corporativo {data_inicio} a {data_fim}"
+        
+        # 7. Criar HTML formatado
+        conteudo_html = _gerar_html_email(boletim_texto, data_inicio, data_fim)
 
         # 8. Enviar email
         print(f"📤 Enviando email para {len(destinatarios)} destinatário(s)...")

@@ -5,7 +5,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch
 
 from models.dados_boletim_model import DadosBoletimModel
-
+from models.envio_semanal_model import _ler_periodo_banco
 
 
 class BoletimService:
@@ -38,10 +38,15 @@ class BoletimService:
         self.tokenizer = AutoTokenizer.from_pretrained("google/gemma-3-1b-pt")
 
     def _gerar_periodo_boletim(self) -> tuple[str, str]:
-        """Gera o período do boletim (últimas 52 semanas)"""
-        data_fim = datetime.now()
-        data_inicio = data_fim - timedelta(weeks=52)
+        """Gera período do boletim a partir do banco"""
+        data_inicio, data_fim = _ler_periodo_banco()
+        
+        if not data_inicio or not data_fim:
+            data_fim = datetime.now()
+            data_inicio = data_fim - timedelta(weeks=52)
+        
         return data_inicio.strftime("%d/%m/%Y"), data_fim.strftime("%d/%m/%Y")
+
 
     def _formatar_dados_estruturados(self, dados: DadosBoletimModel) -> str:
         """Formata os dados de forma estruturada para facilitar análise"""
@@ -55,7 +60,7 @@ class BoletimService:
         
         return f"""
 📊 INDICADORES DE ESTOQUE E FATURAMENTO
-Período Analisado: {data_inicio} a {data_fim} (últimas 52 semanas)
+Período Analisado: {data_inicio} a {data_fim}
 
 1. CONSUMO E MOVIMENTAÇÃO
    • Estoque Total Consumido: {dados.qtd_estoque_consumido_ton} toneladas
