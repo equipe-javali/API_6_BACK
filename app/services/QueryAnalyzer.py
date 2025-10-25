@@ -1,10 +1,10 @@
 import re
 from typing import Dict, List, Any, Set
 from datetime import datetime
+from difflib import get_close_matches  # Para correção ortográfica
 import nltk
 from nltk.stem import RSLPStemmer  # Stemmer específico para português
 from nltk.corpus import stopwords
-from difflib import get_close_matches  # Para correção ortográfica
 
 # Baixar recursos necessários (executar uma vez)
 try:
@@ -15,19 +15,20 @@ except Exception as e:
 
 class QueryAnalyzer:
     def __init__(self):
-        # Palavras-chave para identificar tipo de consulta (expandidas com sinônimos e plurais)
+        # Palavras-chave para identificar tipo de consulta (expandidas com sinônimos e plurais do primeiro código, mas mantendo simplicidade)
         self.estoque_keywords = [
             'estoque', 'estoques', 'produto', 'produtos', 'sku', 'skus', 'armazenado', 'armazenados', 
             'disponível', 'disponíveis', 'quantidade', 'quantidades', 'aging', 'dias em estoque', 
             'inventário', 'inventários', 'stock', 'stocks', 'bobina', 'bobinas', 'chapa', 'chapas', 
-            'rolo', 'rolos', 'tira', 'tiras', 'laminado', 'laminados', 'aço', 'aços'
+            'rolo', 'rolos', 'tira', 'tiras', 'laminado', 'laminados', 'aço', 'aços', 'registros', 'registro', 'data'  # Mantido 'data' para detectar perguntas sobre datas
         ]
         
         self.faturamento_keywords = [
             'faturamento', 'faturamentos', 'vendas', 'venda', 'cliente', 'clientes', 'peso', 'pesos', 
             'giro', 'giros', 'receita', 'receitas', 'faturado', 'faturados', 'lucro', 'lucros', 
-            'volume', 'volumes', 'receita', 'receitas'
+            'volume', 'volumes'  # Removido 'registro' e 'data' para evitar foco ambíguo
         ]
+        
         
         self.analise_keywords = [
             'análise', 'análises', 'comparar', 'comparação', 'tendência', 'tendências', 'crescimento', 
@@ -35,7 +36,7 @@ class QueryAnalyzer:
             'médias', 'estatística', 'estatísticas'
         ]
         
-        # Mapeamento de meses para números (expandido com variações)
+        # Mapeamento de meses para números (do primeiro código)
         self.meses = {
             'janeiro': 1, 'fevereiro': 2, 'março': 3, 'abril': 4, 'maio': 5, 'junho': 6,
             'julho': 7, 'agosto': 8, 'setembro': 9, 'outubro': 10, 'novembro': 11, 'dezembro': 12
@@ -46,7 +47,7 @@ class QueryAnalyzer:
             'jul': 7, 'ago': 8, 'set': 9, 'out': 10, 'nov': 11, 'dez': 12
         }
         
-        # Sinônimos para produtos (matching semântico, expandido com plurais e variações)
+        # Sinônimos para produtos (do primeiro código)
         self.produto_sinonimos = {
             'bobina': ['bobina', 'bobinas', 'coil', 'coils'],
             'chapa': ['chapa', 'chapas', 'sheet', 'sheets', 'placa', 'placas'],
@@ -67,9 +68,55 @@ class QueryAnalyzer:
             print(f"Aviso: Erro ao inicializar NLTK: {e}. Usando fallbacks.")
             self.stemmer = None
             self.stop_words = set()
-    
+
+    def analyze_query(self, pergunta: str) -> Dict[str, Any]:
+        """Analisa pergunta e determina que tipo de contexto buscar (mescla otimizada)"""
+        pergunta_lower = pergunta.lower()
+        
+        # Contar ocorrências de palavras-chave no texto original (como no segundo código, para evitar normalização excessiva)
+        estoque_score = sum(1 for keyword in self.estoque_keywords 
+                          if keyword in pergunta_lower)
+        faturamento_score = sum(1 for keyword in self.faturamento_keywords 
+                              if keyword in pergunta_lower)
+        analise_score = sum(1 for keyword in self.analise_keywords 
+                           if keyword in pergunta_lower)
+        
+        # Se score == 0, retornar None (como no segundo código, para compatibilidade com test_full_flow.py)
+        if estoque_score + faturamento_score + analise_score == 0:
+            return None
+        
+        # Determinar foco principal
+        query_focus = []
+        if estoque_score > 0:
+            query_focus.append("estoque")
+        if faturamento_score > 0:
+            query_focus.append("faturamento")
+        
+        # Se não identificou foco específico, incluir ambos
+        if not query_focus:
+            query_focus = ["estoque", "faturamento"]
+        
+        # Determinar tipo de análise
+        if analise_score > 0:
+            query_type = "analytical"
+        elif any(word in pergunta_lower for word in ['quanto', 'quantos', 'qual']):
+            query_type = "quantitative"
+        else:
+            query_type = "general"
+        
+        # Detectar filtros específicos (usando PLN avançada do primeiro código)
+        filters = self._extract_filters(pergunta_lower)
+        
+        return {
+            "focus": query_focus,
+            "type": query_type,
+            "filters": filters,
+            "complexity_score": estoque_score + faturamento_score + analise_score,
+            "requires_detailed_data": analise_score > 0 or "detalh" in pergunta_lower
+        }
+
     def _normalize_text(self, text: str) -> str:
-        """Normaliza texto com correção ortográfica, remoção de stopwords e stemming/lemmatização avançada"""
+        """Normaliza texto com correção ortográfica, remoção de stopwords e stemming/lemmatização avançada (do primeiro código)"""
         # Remover pontuação
         text = re.sub(r'[^\w\s]', '', text)
         # Converter para minúsculas
@@ -97,9 +144,9 @@ class QueryAnalyzer:
                 corrected_words.append(word)
         
         return ' '.join(corrected_words)
-    
+
     def _stem_word(self, word: str) -> str:
-        """Stemming/lemmatização usando RSLPStemmer ou fallback básico"""
+        """Stemming/lemmatização usando RSLPStemmer ou fallback básico (do primeiro código)"""
         if self.stemmer:
             try:
                 return self.stemmer.stem(word)
@@ -111,71 +158,13 @@ class QueryAnalyzer:
             if word.endswith(sufixo) and len(word) > len(sufixo) + 1:
                 return word[:-len(sufixo)]
         return word
-        
-    def analyze_query(self, pergunta: str) -> Dict[str, Any]:
-        """Analisa pergunta e determina que tipo de contexto buscar, com PLN aprimorado"""
-        pergunta_lower = pergunta.lower()
-        pergunta_normalizada = self._normalize_text(pergunta_lower)
-        
-        # Contar ocorrências de palavras-chave (usando matching semântico)
-        estoque_score = self._count_keywords(pergunta_normalizada, self.estoque_keywords)
-        faturamento_score = self._count_keywords(pergunta_normalizada, self.faturamento_keywords)
-        analise_score = self._count_keywords(pergunta_normalizada, self.analise_keywords)
-        
-        # Sempre retornar um dicionário, mesmo se score == 0 (evita None)
-        if estoque_score + faturamento_score + analise_score == 0:
-            return {
-                "focus": ["estoque", "faturamento"],  # Fallback para ambos
-                "type": "general",
-                "filters": {},
-                "complexity_score": 0,
-                "requires_detailed_data": False
-            }
-        
-        # Determinar foco principal
-        query_focus = []
-        if estoque_score > 0:
-            query_focus.append("estoque")
-        if faturamento_score > 0:
-            query_focus.append("faturamento")
-        
-        # Se não identificou foco específico, incluir ambos
-        if not query_focus:
-            query_focus = ["estoque", "faturamento"]
-        
-        # Determinar tipo de análise
-        if analise_score > 0:
-            query_type = "analytical"
-        elif any(word in pergunta_normalizada for word in ['quant', 'qual']):
-            query_type = "quantitative"
-        else:
-            query_type = "general"
-        
-        # Detectar filtros específicos com PLN aprimorado
-        filters = self._extract_filters(pergunta_normalizada)
-        
-        return {
-            "focus": query_focus,
-            "type": query_type,
-            "filters": filters,
-            "complexity_score": estoque_score + faturamento_score + analise_score,
-            "requires_detailed_data": analise_score > 0 or "detalh" in pergunta_normalizada
-        }
-    
-    def _count_keywords(self, text: str, keywords: List[str]) -> int:
-        """Conta ocorrências de palavras-chave com matching semântico"""
-        score = 0
-        for keyword in keywords:
-            if keyword in text:
-                score += 1
-        return score
-    
+
     def _extract_filters(self, pergunta: str) -> Dict[str, Any]:
-        """Extrai filtros específicos da pergunta, incluindo datas/meses/anos e produtos com PLN aprimorado"""
+        """Extrai filtros específicos da pergunta, incluindo datas/meses/anos e produtos com PLN aprimorado (do primeiro código)"""
         filters = {}
         pergunta_lower = pergunta.lower()
         
-        print(f"[PLN DEBUG] Extraindo filtros de pergunta normalizada: '{pergunta}'")
+        print(f"[PLN DEBUG] Extraindo filtros de pergunta: '{pergunta}'")
         
         # 1. Detecção de produtos com PLN avançado (sinônimos + plurais)
         produtos_detectados: Set[str] = set()
@@ -200,8 +189,8 @@ class QueryAnalyzer:
         if produtos_detectados:
             filters['produtos'] = list(produtos_detectados)
         
-        # 2. Detecção de SKUs aprimorada
-        sku_pattern = r'\bsku[_\s]*(\w+)\b'
+        # 2. Detecção de SKUs aprimorada (ajustado para capturar apenas SKUs válidos com pelo menos 2 caracteres)
+        sku_pattern = r'\bsku[_\s]*([a-zA-Z0-9]{2,})\b'
         sku_matches = re.findall(sku_pattern, pergunta_lower)
         if sku_matches:
             filters['skus'] = sku_matches
@@ -273,3 +262,4 @@ class QueryAnalyzer:
         
         print(f"[PLN DEBUG] Filtros extraídos finais: {filters}")
         return filters
+
