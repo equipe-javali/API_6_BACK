@@ -11,23 +11,29 @@ from services.boletim_service import BoletimService
 from models.dados_boletim_model import DadosBoletimModel
 from models.estoque_model import EstoqueModel
 from models.faturamento_model import FaturamentoModel
+from models.envio_semanal_model import _ler_periodo_banco
+from models.envio_semanal_model import _salvar_periodo_banco
 
 router = APIRouter()
 
-# iniciar o relatório semanal por período 
-
 
 def _gerar_periodo_boletim() -> tuple[str, str]:
-    """Gera o período do boletim (últimas 52 semanas)"""
-    data_fim = datetime.now()
-    data_inicio = data_fim - timedelta(weeks=52)
+    """Gera período do boletim a partir do banco"""
+    data_inicio, data_fim = _ler_periodo_banco()
+    
+    if not data_inicio or not data_fim:
+        data_fim = datetime.now()
+        data_inicio = data_fim - timedelta(weeks=52)
+    
     return data_inicio.strftime("%d/%m/%Y"), data_fim.strftime("%d/%m/%Y")
 
 
-def _gerar_html_email(boletim_texto: str) -> str:
+
+def _gerar_html_email(boletim_texto: str, data_inicio: datetime, data_fim: datetime) -> str:
     """Gera o HTML formatado para email"""
-    data_inicio, data_fim = _gerar_periodo_boletim()
+    
     assunto = f"Boletim Corporativo {data_inicio} a {data_fim}"
+    print(data_inicio, data_fim)
     
     html = f"""
     <!DOCTYPE html>
@@ -103,12 +109,39 @@ def _gerar_html_email(boletim_texto: str) -> str:
     """
     return html
 
+# -------------------
+# ENVIO SEMANAL
+# -------------------
+
+def verificar_envio_semanal():
+    """Verifica se já passou 1 semana desde o último boletim"""
+    data_inicio_antiga, data_fim_antiga = _ler_periodo_banco()
+
+    if not data_fim_antiga:
+        print("Nenhum envio anterior encontrado. Gerando primeiro boletim...")
+        hoje = datetime.now()
+        _salvar_periodo_banco(hoje - timedelta(days=7), hoje)
+        enviar_relatorio()
+        return
+
+    dias_desde_ultimo = (datetime.now().date() - data_fim_antiga.date()).days
+    print(f"Último boletim enviado há {dias_desde_ultimo} dia(s).")
+
+    if dias_desde_ultimo >= 7:
+        print("Já se passou uma semana. Gerando novo boletim...")
+        hoje = datetime.now()
+        _salvar_periodo_banco(data_fim_antiga + timedelta(days=1), hoje)
+        enviar_relatorio()
+    else:
+        print("Ainda não passou uma semana. Nenhum boletim enviado.")
+
+
 
 @router.post("/enviar-relatorio")
 def enviar_relatorio():
     """Gera e envia o boletim corporativo por email"""
     try:
-        print("📧 Iniciando processo de envio de boletim...")
+        print("Iniciando processo de envio de boletim...")
         
         # 1. Buscar usuários que recebem boletim
         usuarios = get_usuarios_boletim()
@@ -117,10 +150,10 @@ def enviar_relatorio():
         if not destinatarios:
             raise HTTPException(status_code=404, detail="Nenhum usuário para boletim encontrado.")
         
-        print(f"✅ {len(destinatarios)} destinatário(s) encontrado(s)")
+        print(f"✅ {len(destinatarios)} destinatário(s) encontrado(s): {destinatarios}")
 
         # 2. Carregar dados dos CSVs
-        print("📂 Carregando dados dos CSVs...")
+        print("Carregando dados dos CSVs...")
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         estoque_path = os.path.join(base_dir, "db", "estoque 1.csv")
         faturamento_path = os.path.join(base_dir, "db", "faturamento 1.csv")
@@ -136,9 +169,9 @@ def enviar_relatorio():
         dados_faturamento = [FaturamentoModel(*values) for values in faturamento_df.values]
 
         # 4. Processar dados e gerar indicadores
-        print("📊 Processando indicadores...")
+        print("Processando indicadores...")
         dados_boletim = DadosBoletimModel.from_raw_data(dados_estoque, dados_faturamento)
-        print(f"✅ Indicadores gerados: {dados_boletim.qtd_estoque_consumido_ton}t consumidas")
+        print(f"Indicadores gerados: {dados_boletim.qtd_estoque_consumido_ton}t consumidas")
 
         # 5. Gerar boletim com IA
         print("🤖 Gerando boletim com IA...")
@@ -147,7 +180,7 @@ def enviar_relatorio():
         print(f"✅ Boletim gerado ({len(boletim_texto)} caracteres)")
 
         # 6. Criar HTML formatado
-        conteudo_html = _gerar_html_email(boletim_texto)
+        conteudo_html = _gerar_html_email(boletim_texto, data_inicio, data_fim)
         
         # 7. Gerar assunto com período
         data_inicio, data_fim = _gerar_periodo_boletim()

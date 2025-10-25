@@ -4,9 +4,18 @@ from routes.auth import router as auth_router
 from routes.user import router as user_router
 from routes.csv import router as csv_router  
 from routes.envio_relatorio import router as envio_relatorio_router
+from contextlib import asynccontextmanager
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    from routes.envio_relatorio import verificar_envio_semanal
+    
+    print("Iniciando aplicação e verificando boletim semanal...")
+    verificar_envio_semanal()
+    yield
+    print("Encerrando aplicação.")
 
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
