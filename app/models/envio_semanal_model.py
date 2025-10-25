@@ -16,7 +16,7 @@ def _ler_periodo_banco() -> tuple[datetime | None, datetime | None]:
             data_inicio, data_fim = row
             return data_inicio, data_fim
     except Exception as e:
-        print(f"⚠️ Erro ao ler período do banco: {e}")
+        print(f"Erro ao ler período do banco: {e}")
         return None, None
 
 
