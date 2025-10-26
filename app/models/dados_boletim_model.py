@@ -31,10 +31,6 @@ class DadosBoletimModel:
         self.risco_desabastecimento_sku1 = risco_desabastecimento_sku1
     
     @staticmethod
-    def _parse_date(date_str: str) -> datetime:
-        return datetime.strptime(date_str, "%Y-%m-%d")
-    
-    @staticmethod
     def _percentile(sorted_vals: list[float], perc: float) -> float:
         """Retorna percentil (perc em 0..100) de lista já ordenada.
            Se lista vazia retorna 0.0."""
@@ -62,12 +58,12 @@ class DadosBoletimModel:
 
         # filtrar por últimas 52 semanas
         for e in dados_estoque:
-            d = DadosBoletimModel._parse_date(e.data)
+            d = e.data
             if d is None or d >= cutoff:
                 estoque_filtered.append(e)
 
         for f in dados_faturamento:
-            d = DadosBoletimModel._parse_date(f.data)
+            d = f.data
             if d is None or d >= cutoff:
                 faturamento_filtered.append(f)
 
@@ -80,7 +76,7 @@ class DadosBoletimModel:
         meses_com_compra: set[tuple] = set()
         for f in faturamento_filtered:
             peso = f.zs_peso_liquido or 0
-            d = DadosBoletimModel._parse_date(f.data)
+            d = f.data
             if peso > 0:
                 if d:
                     meses_com_compra.add((d.year, d.month))
