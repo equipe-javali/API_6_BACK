@@ -198,7 +198,6 @@ def enviar_pergunta(
         import traceback
         traceback.print_exc()
         
-        # ✨ Fallback: retorna a pergunta salva mesmo se IA falhar
         # Assim o usuário não perde a pergunta
         return {
             "success": True,

@@ -99,8 +99,12 @@ class QueryAnalyzer:
         # Determinar tipo de análise
         if analise_score > 0:
             query_type = "analytical"
-        elif any(word in pergunta_lower for word in ['quanto', 'quantos', 'qual']):
-            query_type = "quantitative"
+        elif any(word in pergunta_lower for word in ['quanto', 'quantos', 'quantas', 'qual', 'quais']):
+            # Verificar se é pergunta sobre produto específico por SKU
+            if 'sku' in pergunta_lower and any(word in pergunta_lower for word in ['produto', 'qual', 'código']):
+                query_type = "sku_lookup"
+            else:
+                query_type = "quantitative"
         else:
             query_type = "general"
         
@@ -189,12 +193,19 @@ class QueryAnalyzer:
         if produtos_detectados:
             filters['produtos'] = list(produtos_detectados)
         
-        # 2. Detecção de SKUs aprimorada (ajustado para capturar apenas SKUs válidos com pelo menos 2 caracteres)
-        sku_pattern = r'\bsku[_\s]*([a-zA-Z0-9]{2,})\b'
-        sku_matches = re.findall(sku_pattern, pergunta_lower)
+        # 2. Detecção de SKUs aprimorada (ajustado para capturar SKUs válidos com pelo menos 1 caracter após SKU)
+        sku_pattern = r'\bsku[_]?\s*([a-zA-Z0-9]+)\b'
+        sku_matches = re.findall(sku_pattern, pergunta_lower, re.IGNORECASE)
         if sku_matches:
-            filters['skus'] = sku_matches
-            print(f"[PLN DEBUG] SKUs detectados: {sku_matches}")
+            # Normalizar SKUs para formato SKU_X
+            normalized_skus = []
+            for sku in sku_matches:
+                if not sku.startswith('_'):
+                    normalized_skus.append(f"SKU_{sku}")
+                else:
+                    normalized_skus.append(f"SKU{sku}")
+            filters['skus'] = normalized_skus
+            print(f"[PLN DEBUG] SKUs detectados: {normalized_skus}")
         
         # 3. Detecção de datas aprimorada com padrões regex robustos
         # Padrões para datas: "abril de 2024", "abril 2024", "04/2024", "2024/04", etc.
