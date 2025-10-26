@@ -46,8 +46,6 @@ Deleta o usuário.
 ## GET - `/tipo/{id}`
 Retorna o usuário e seu tipo (admin ou não)
 
-[Voltar ao topo](#sumário)
-
 → [Voltar ao topo](#topo)
 
 <span id="estrutura">
@@ -79,24 +77,20 @@ Para executar o projeto, certifiquece de ter instalados os seguintes programas:
 
 ## :gear: Instruções para Executar
 
+Obtenha a permissão de uso dos modelos "google/gemma-3-1b-pt" e "google/gemma-2-2b-it" no huggingface.
+
 ```
 git clone https://github.com/equipe-javali/API_6_BACK
 cd API_6_BACK
 python -m venv venv
 .\venv\Scripts\activate
-python install -r req.txt
+pip install -r req.txt
 python .\app\main.py
 ```
 
 → [Voltar ao topo](#topo)
 
-<!-- <span id="execucao">
-
-## :gear: Instruções para Executar
-
-→ [Voltar ao topo](#topo)
-
-<span id="teste">
+<!-- <span id="teste">
 
 ## 🧪 Instruções para Testar
 
