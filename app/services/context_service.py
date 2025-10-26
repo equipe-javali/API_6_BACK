@@ -1,7 +1,7 @@
 from typing import Dict, List, Any, Optional
-from app.db.neon_db import NeonDB  # ALTERADO: Adicionado "app." no início
-from app.models.estoque_model import EstoqueModel # ALTERADO: Adicionado "app." no início
-from app.models.faturamento_model import FaturamentoModel # ALTERADO: Adicionado "app." no início
+from db.neon_db import NeonDB  
+from models.estoque_model import EstoqueModel 
+from models.faturamento_model import FaturamentoModel 
 from datetime import datetime, timedelta
 
 class ContextService:

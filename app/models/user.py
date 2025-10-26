@@ -40,3 +40,9 @@ class PerguntaCreate(BaseModel):
 class Pergunta(PerguntaCreate):
     id: int
     envio: datetime
+
+class PerguntaComResposta(BaseModel):
+    """Modelo para retornar pergunta + resposta"""
+    success: bool
+    pergunta: Pergunta
+    resposta: str
