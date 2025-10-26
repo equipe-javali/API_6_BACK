@@ -1,6 +1,9 @@
+import datetime
+
+
 class FaturamentoModel:
     def __init__(self,
-            data: str,
+            data: datetime,
             cod_cliente: int,
             lote: str,
             origem: str,

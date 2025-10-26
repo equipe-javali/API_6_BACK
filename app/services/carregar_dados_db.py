@@ -35,9 +35,9 @@ class CarregadorDadosDB:
                 else:
                     return None
 
-            datas_validas = [d for d in [parse_data(data_estoque), parse_data(data_faturamento)] if d]
+            datas_validas = [d for d in [data_estoque, data_faturamento] if d]
             if not datas_validas:
-                print("⚠️ Nenhuma data válida encontrada no banco.")
+                print("Nenhuma data válida encontrada no banco.")
                 return None
 
             primeira_data = min(datas_validas)
@@ -210,7 +210,8 @@ def gerar_boletim_model(
     registros_estoque = []
     for _, row in estoque_df.iterrows():
         kwargs = {col: row[col] if col in row else None for col in colunas_estoque}
-        kwargs['sku'] = row['sku'] if 'sku' in row and row['sku'] else 'sku_1'
+        if 'sku' in kwargs:
+            kwargs['SKU'] = kwargs.pop('sku')
         registros_estoque.append(EstoqueModel(**kwargs))
 
 
@@ -218,7 +219,7 @@ def gerar_boletim_model(
     colunas_faturamento = [
     'data', 'cod_cliente', 'lote', 'origem', 'zs_gr_mercad',
     'produto', 'cod_produto', 'zs_centro', 'zs_cidade', 'zs_uf',
-    'zs_peso_liquido', 'giro_sku_cliente'
+    'zs_peso_liquido', 'giro_sku_cliente', 'sku'
     ]
 
     registros_faturamento = []
@@ -243,7 +244,8 @@ def gerar_boletim_model(
     for _, row in faturamento_df.iterrows():
         kwargs = {col: row[col] if col in row else None for col in colunas_faturamento}
         # Garantir que a chave SKU exista e seja maiúscula
-        kwargs['SKU'] = row['SKU'] if 'SKU' in row and row['SKU'] else 'SKU_0'
+        if 'sku' in kwargs:
+            kwargs['SKU'] = kwargs.pop('sku')
         registros_faturamento.append(FaturamentoModel(**kwargs))
 
 

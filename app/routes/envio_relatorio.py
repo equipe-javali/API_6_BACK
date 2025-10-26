@@ -1,5 +1,5 @@
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date, time
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -18,22 +18,22 @@ from services.carregar_dados_db import CarregadorDadosDB
 router = APIRouter()
 
 
-def _gerar_periodo_boletim() -> tuple[str, str]:
-    """Gera período do boletim a partir do banco"""
+
+def _gerar_periodo_boletim() -> tuple[datetime, datetime]:
+    """Gera período do boletim a partir do banco, sempre retornando datetime."""
     data_inicio, data_fim = _ler_periodo_banco()
     
     if not data_inicio or not data_fim:
         data_fim = datetime.now()
         data_inicio = data_fim - timedelta(weeks=52)
     
-    return data_inicio.strftime("%d/%m/%Y"), data_fim.strftime("%d/%m/%Y")
-
+    return data_inicio, data_fim
 
 
 def _gerar_html_email(boletim_texto: str, data_inicio: datetime, data_fim: datetime) -> str:
     """Gera o HTML formatado para email"""
     
-    assunto = f"Boletim Corporativo {data_inicio} a {data_fim}"
+    assunto = f"Boletim Corporativo {data_inicio.strftime('%d/%m/%Y')} a {data_fim.strftime('%d/%m/%Y')}"
     print(data_inicio, data_fim)
     
     html = f"""
@@ -96,7 +96,7 @@ def _gerar_html_email(boletim_texto: str, data_inicio: datetime, data_fim: datet
         <div class="container">
             <div class="header">
                 <h1>📊 {assunto}</h1>
-                <p class="periodo">Período de análise: {data_inicio} a {data_fim}</p>
+                <p class="periodo">Período de análise: {data_inicio.strftime('%d/%m/%Y')} a {data_fim.strftime('%d/%m/%Y')}</p>
             </div>
             <div class="conteudo">
                 {boletim_texto}
@@ -119,6 +119,8 @@ def verificar_envio_semanal():
     try:
         data_inicio_antiga, data_fim_antiga = _ler_periodo_banco()
 
+        # Garante que são datetime válidos
+        
         # Caso ainda não exista registro anterior
         if not data_fim_antiga:
             print("Nenhum envio anterior encontrado. Gerando primeiro boletim...")
@@ -133,7 +135,7 @@ def verificar_envio_semanal():
             data_inicio = primeira_data
             data_fim = data_inicio + timedelta(days=6)
 
-            print(f"Primeiro período definido: {data_inicio} a {data_fim}")
+            print(f"🗓️ Primeiro período definido: {data_inicio.date()} a {data_fim.date()}")
             _salvar_periodo_banco(data_inicio, data_fim)
             enviar_relatorio()
             return
@@ -143,15 +145,19 @@ def verificar_envio_semanal():
         print(f"Último boletim enviado há {dias_desde_ultimo} dia(s).")
 
         if dias_desde_ultimo >= 7:
-            print("Já se passou uma semana. Gerando novo boletim...")
+            print("📅 Já se passou uma semana. Gerando novo boletim...")
             
-            _salvar_periodo_banco(data_fim_antiga + timedelta(days=1), data_fim_antiga + timedelta(days=6))
+            novo_inicio = data_fim_antiga + timedelta(days=1)
+            novo_fim = novo_inicio + timedelta(days=6)
+            
+            print(f"Novo período: {novo_inicio.date()} a {novo_fim.date()}")
+            _salvar_periodo_banco(novo_inicio, novo_fim)
             enviar_relatorio()
         else:
-            print("Ainda não passou uma semana. Nenhum boletim enviado.")
+            print("⏳ Ainda não passou uma semana. Nenhum boletim enviado.")
 
     except Exception as e:
-        print(f"Erro na verificação semanal: {e}")
+        print(f"❌ Erro na verificação semanal: {e}")
 
 
 
@@ -159,7 +165,7 @@ def verificar_envio_semanal():
 def enviar_relatorio():
     """Gera e envia o boletim corporativo por email"""
     try:
-        print("Iniciando processo de envio de boletim...")
+        print("🚀 Iniciando processo de envio de boletim...")
 
         # 1️⃣ Buscar usuários que recebem boletim
         usuarios = get_usuarios_boletim()
@@ -170,33 +176,86 @@ def enviar_relatorio():
         print(f"✅ {len(destinatarios)} destinatário(s): {destinatarios}")
 
         # 2️⃣ Período atual do boletim
-        data_inicio_str, data_fim_str = _gerar_periodo_boletim()
-        data_inicio = datetime.strptime(data_inicio_str, "%d/%m/%Y")
-        data_fim = datetime.strptime(data_fim_str, "%d/%m/%Y")
+        data_inicio, data_fim = _gerar_periodo_boletim()
 
         # 3️⃣ Buscar dados no banco Neon
         print("🔗 Conectando ao banco Neon...")
         with NeonDB() as db:
+            # 🔹 Query Estoque
             estoque_rows = db.query("""
-                SELECT cod_cliente,es_centro,tipo_material,origem,cod_produto,lote,dias_em_estoque,produto,grupo_mercadoria,es_totalestoque,sku
+                SELECT
+                    data,
+                    cod_cliente,
+                    es_centro,
+                    tipo_material,
+                    origem,
+                    cod_produto,
+                    lote,
+                    dias_em_estoque,
+                    produto,
+                    grupo_mercadoria,
+                    es_totalestoque,
+                    sku AS "SKU"
                 FROM estoque
                 WHERE data BETWEEN %s AND %s
             """, [data_inicio, data_fim])
 
+            # 🔹 Query Faturamento
             faturamento_rows = db.query("""
-                SELECT cod_cliente,lote,origem,zs_gr_mercad,produto,cod_produto,zs_centro,zs_cidade,zs_uf,zs_peso_liquido,giro_sku_cliente,sku
+                SELECT
+                    data,
+                    cod_cliente,
+                    lote,
+                    origem,
+                    zs_gr_mercad,
+                    produto,
+                    cod_produto,
+                    zs_centro,
+                    zs_cidade,
+                    zs_uf,
+                    zs_peso_liquido,
+                    giro_sku_cliente,
+                    sku AS "SKU"
                 FROM faturamento
                 WHERE data BETWEEN %s AND %s
             """, [data_inicio, data_fim])
 
-        print(f"✅ {len(estoque_rows)} registros de estoque , {len(faturamento_rows)} de faturamento")
+        print(f"✅ {len(estoque_rows)} registros de estoque, {len(faturamento_rows)} de faturamento")
 
-        # 4️⃣ Converter para modelos
-        dados_estoque = [EstoqueModel(*row) for row in estoque_rows]
-        dados_faturamento = [FaturamentoModel(*row) for row in faturamento_rows]
+        # 4️⃣ Converter para modelos — garantindo compatibilidade com campos
+        colunas_estoque = [
+            "data", "cod_cliente", "es_centro", "tipo_material", "origem", "cod_produto",
+            "lote", "dias_em_estoque", "produto", "grupo_mercadoria",
+            "es_totalestoque", "SKU"
+        ]
+        colunas_faturamento = [
+            "data", "cod_cliente", "lote", "origem", "zs_gr_mercad", "produto",
+            "cod_produto", "zs_centro", "zs_cidade", "zs_uf",
+            "zs_peso_liquido", "giro_sku_cliente", "SKU"
+        ]
+
+        if estoque_rows:
+            print("🔍 Exemplo linha estoque:", dict(zip(colunas_estoque, estoque_rows[0])))
+        if faturamento_rows:
+            print("🔍 Exemplo linha faturamento:", dict(zip(colunas_faturamento, faturamento_rows[0])))
+
+        dados_estoque = [
+            EstoqueModel(**dict(zip(colunas_estoque, row)))
+            for row in estoque_rows
+        ]
+        dados_faturamento = []
+        for row in faturamento_rows:
+            # Converte a lista de tuplas em um dicionário para fácil manipulação
+            data_dict = dict(zip(colunas_faturamento, row))
+            
+            # Se 'data' é um datetime.date (sem hora), converte para datetime.datetime (com hora 00:00:00)
+            if isinstance(data_dict['data'], date) and not isinstance(data_dict['data'], datetime):
+                data_dict['data'] = datetime.combine(data_dict['data'], datetime.min.time())
+                
+            dados_faturamento.append(FaturamentoModel(**data_dict))
 
         # 5️⃣ Processar indicadores
-        print("Calculando indicadores de boletim...")
+        print("📊 Calculando indicadores do boletim...")
         dados_boletim = DadosBoletimModel.from_raw_data(dados_estoque, dados_faturamento)
 
         # 6️⃣ Gerar texto do boletim
@@ -204,14 +263,14 @@ def enviar_relatorio():
         boletim_texto = boletim_service.gerar_str_boletim(dados_boletim)
 
         # 7️⃣ Montar e enviar email
-        assunto = f"Boletim Semanal {data_inicio_str} a {data_fim_str}"
-        conteudo_html = _gerar_html_email(boletim_texto, data_inicio_str, data_fim_str)
+        conteudo_html = _gerar_html_email(boletim_texto, data_inicio, data_fim)
+        assunto = f"Boletim Semanal {data_inicio.strftime('%d/%m/%Y')} a {data_fim.strftime('%d/%m/%Y')}"
 
         print(f"📤 Enviando email para {len(destinatarios)} usuário(s)...")
         resultado = enviar_email(destinatarios, assunto, conteudo_html)
 
-        if resultado["status"] == "erro":
-            raise HTTPException(status_code=500, detail=resultado["mensagem"])
+        if resultado.get("status") == "erro":
+            raise HTTPException(status_code=500, detail=resultado.get("mensagem", "Erro no envio de e-mail."))
 
         print("✅ Boletim enviado com sucesso!")
         return {
