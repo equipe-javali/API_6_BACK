@@ -1,8 +1,5 @@
-from typing import Dict, List, Any, Optional
-from db.neon_db import NeonDB  
-from models.estoque_model import EstoqueModel 
-from models.faturamento_model import FaturamentoModel 
-from datetime import datetime, timedelta
+from typing import Dict, List, Any
+from app.db.neon_db import NeonDB  
 
 class ContextService:
     def __init__(self):
