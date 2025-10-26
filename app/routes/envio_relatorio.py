@@ -135,7 +135,7 @@ def verificar_envio_semanal():
             data_inicio = primeira_data
             data_fim = data_inicio + timedelta(days=6)
 
-            print(f"🗓️ Primeiro período definido: {data_inicio.date()} a {data_fim.date()}")
+            print(f"Primeiro período definido: {data_inicio.date()} a {data_fim.date()}")
             _salvar_periodo_banco(data_inicio, data_fim)
             enviar_relatorio()
             return
@@ -145,7 +145,7 @@ def verificar_envio_semanal():
         print(f"Último boletim enviado há {dias_desde_ultimo} dia(s).")
 
         if dias_desde_ultimo >= 7:
-            print("📅 Já se passou uma semana. Gerando novo boletim...")
+            print("Já se passou uma semana. Gerando novo boletim...")
             
             novo_inicio = data_fim_antiga + timedelta(days=1)
             novo_fim = novo_inicio + timedelta(days=6)
@@ -154,7 +154,7 @@ def verificar_envio_semanal():
             _salvar_periodo_banco(novo_inicio, novo_fim)
             enviar_relatorio()
         else:
-            print("⏳ Ainda não passou uma semana. Nenhum boletim enviado.")
+            print("Ainda não passou uma semana. Nenhum boletim enviado.")
 
     except Exception as e:
         print(f"❌ Erro na verificação semanal: {e}")
@@ -165,7 +165,7 @@ def verificar_envio_semanal():
 def enviar_relatorio():
     """Gera e envia o boletim corporativo por email"""
     try:
-        print("🚀 Iniciando processo de envio de boletim...")
+        print("Iniciando processo de envio de boletim...")
 
         # 1️⃣ Buscar usuários que recebem boletim
         usuarios = get_usuarios_boletim()
@@ -179,7 +179,7 @@ def enviar_relatorio():
         data_inicio, data_fim = _gerar_periodo_boletim()
 
         # 3️⃣ Buscar dados no banco Neon
-        print("🔗 Conectando ao banco Neon...")
+        print("Conectando ao banco Neon...")
         with NeonDB() as db:
             # 🔹 Query Estoque
             estoque_rows = db.query("""
@@ -197,8 +197,7 @@ def enviar_relatorio():
                     es_totalestoque,
                     sku AS "SKU"
                 FROM estoque
-                WHERE data BETWEEN %s AND %s
-            """, [data_inicio, data_fim])
+            """)
 
             # 🔹 Query Faturamento
             faturamento_rows = db.query("""
