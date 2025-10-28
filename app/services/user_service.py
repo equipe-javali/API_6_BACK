@@ -160,9 +160,12 @@ class UserService:
             print("[UserService.enviar_pergunta] Tabela 'mensagem' assumida existente; prosseguindo com INSERT")
             print("[UserService.enviar_pergunta] Executando INSERT na tabela mensagem (sem id)...")
             
+            # Trunca a mensagem para 255 caracteres para evitar erro de banco
+            mensagem_truncada = mensagem[:255] if len(mensagem) > 255 else mensagem
+            
             row = db.fetchone(
                 "INSERT INTO mensagem (id_usuario, mensagem, ia, envio) VALUES (%s, %s, %s, NOW()) RETURNING id, envio",
-                [id_usuario, mensagem, ia]
+                [id_usuario, mensagem_truncada, ia]
             )
             print(f"[UserService.enviar_pergunta] Resultado do INSERT (row): {row}")
             db.commit()
@@ -177,7 +180,7 @@ class UserService:
                 "pergunta": {
                     "id": row[0],
                     "id_usuario": id_usuario,
-                    "mensagem": mensagem,
+                    "mensagem": mensagem_truncada,
                     "ia": ia,
                     "envio": row[1]
                 }

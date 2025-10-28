@@ -12,9 +12,16 @@ load_dotenv()
 
 class AgentService:
     def __init__(self):
+        import random
+        SEED = 52  # Valor fixo para garantir determinismo
+        torch.manual_seed(SEED)
+        random.seed(SEED)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(SEED)
+
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print("AgentService using device:", self.device)
-        
+
         HG_TOKEN = os.getenv("HG_TOKEN")
         model_name = os.getenv("HF_MODEL", "google/gemma-3-1b-pt")
         if self.device.type == "cuda":
@@ -35,6 +42,14 @@ class AgentService:
         self._cache = {}
         self._cache_max_size = 100
         self.query_analyzer = QueryAnalyzer()
+    
+    def _format_number_br(self, number: float) -> str:
+        """Formata número no formato brasileiro: x.xxx,xx"""
+        if isinstance(number, Decimal):
+            number = float(number)
+        # Formata com separador americano e depois troca
+        formatted = f"{number:,.2f}"
+        return formatted.replace(',', 'temp').replace('.', ',').replace('temp', '.')
     
     def processar_pergunta_simples(self, pergunta: str) -> str:
         if not pergunta or not pergunta.strip():
@@ -427,6 +442,7 @@ Query SQL:"""
                 ('quais' in pergunta_lower and 'skus' in pergunta_lower) or
                 ('todos os produtos' in pergunta_lower) or
                 ('informe o nome' in pergunta_lower and 'produtos' in pergunta_lower) or
+                ('quais produtos' in pergunta_lower) or  # Adicionada detecção para "quais produtos"
                 (('quantas' in pergunta_lower or 'quantos' in pergunta_lower) and analise and analise.get('filters', {}).get('produtos')) or
                 ('qual o nome' in pergunta_lower and 'produto' in pergunta_lower and ('codigo' in pergunta_lower or 'sku' in pergunta_lower)) or
                 ('a que grupo' in pergunta_lower and 'mercadoria' in pergunta_lower) or
@@ -514,7 +530,7 @@ Resposta:"""
                     total = int(total)
                 return f"Segundo nossos registros, a tabela possui {total} entradas cadastradas."
 
-        elif 'todos os produtos' in pergunta_lower or 'listar produtos' in pergunta_lower or ('informe o nome' in pergunta_lower and 'produtos' in pergunta_lower):
+        elif 'todos os produtos' in pergunta_lower or 'listar produtos' in pergunta_lower or ('informe o nome' in pergunta_lower and 'produtos' in pergunta_lower) or 'quais produtos' in pergunta_lower:
             if sql_result:
                 produtos = [row['produto'] for row in sql_result]
                 return f"Os produtos disponíveis em nosso sistema são: {', '.join(produtos)}."
@@ -527,7 +543,7 @@ Resposta:"""
             if sql_result and 'produto' in sql_result[0] and 'es_totalestoque' in sql_result[0]:
                 produto = sql_result[0]['produto']
                 quantidade = float(sql_result[0]['es_totalestoque'])
-                return f"O produto com maior volume em estoque é {produto}, com {quantidade:,.2f} unidades disponíveis."
+                return f"O produto com maior volume em estoque é {produto}, com {self._format_number_br(quantidade)} unidades disponíveis."
 
         elif 'quais os diferentes skus' in pergunta_lower or 'quais skus' in pergunta_lower:
             if sql_result:
@@ -574,7 +590,7 @@ Resposta:"""
                 total = sql_result[0].get('total', 0)
                 if isinstance(total, Decimal):
                     total = float(total)
-                return f"Atualmente mantemos {total:,.2f} unidades do produto {produto} em nosso estoque."
+                return f"Atualmente mantemos {self._format_number_br(total)} unidades do produto {produto} em nosso estoque."
         if 'faturamento' in pergunta_lower or 'vendas' in pergunta_lower:
             if sql_result and len(sql_result) > 0:
                 total = sql_result[0].get('total', 0)
@@ -586,13 +602,13 @@ Resposta:"""
                 elif 'mes' in filters and 'ano' in filters:
                     mes_nome = list(self.query_analyzer.meses.keys())[filters['mes'] - 1]
                     periodo = f" no mês de {mes_nome} de {filters['ano']}"
-                return f"O faturamento registrado{periodo} totalizou R$ {total:,.2f}."
+                return f"O faturamento registrado{periodo} totalizou R$ {self._format_number_br(total)}."
         if sql_result and len(sql_result) > 0 and 'total' in sql_result[0]:
             total = sql_result[0]['total']
             if isinstance(total, Decimal):
                 total = float(total)
             unidade = "R$" if 'faturamento' in pergunta_lower else "unidades"
-            return f"O valor identificado foi de {unidade} {total:,.2f}."
+            return f"O valor identificado foi de {unidade} {self._format_number_br(total)}."
         return "Não foram encontrados resultados para esta consulta em nossa base de dados."
     
     def _format_sql_for_ai(self, sql_result: list, filters: dict) -> str:
@@ -613,7 +629,7 @@ Resposta:"""
             total = sql_result[0]['total']
             if isinstance(total, Decimal):
                 total = float(total)
-            formatted += f"Valor total encontrado: {total:,.2f}"
+            formatted += f"Valor total encontrado: {self._format_number_br(total)}"
         else:
             formatted += f"Registros encontrados: {len(sql_result)}\n"
             for i, row in enumerate(sql_result[:5]):

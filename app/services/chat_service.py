@@ -47,8 +47,36 @@ class ChatService:
             # Analisar a pergunta
             analise = self.query_analyzer.analyze_query(pergunta)
             if not analise:
-                # Se não há análise, assumir foco padrão para perguntas ambíguas
-                analise = {"focus": ["estoque", "faturamento"], "type": "general", "filters": {}, "complexity_score": 0, "requires_detailed_data": False}
+                # Se não há análise, considerar pergunta fora do escopo (não chamar IA)
+                print("[Chat] Pergunta fora do escopo detectada pelo QueryAnalyzer. Respondendo com recusa padrão.")
+
+                # Salvar a pergunta no banco
+                pergunta_result = self.user_service.enviar_pergunta(user_id, pergunta, False, db)
+                if not pergunta_result["success"]:
+                    return {"success": False, "message": "Erro ao salvar pergunta"}
+
+                # Mensagem de recusa — não inventar respostas para tópicos fora do domínio
+                recusa = (
+                    "Desculpe, não tenho acesso a dados ou serviços para responder a essa pergunta. "
+                    "Posso ajudar com análises relacionadas a estoque ou faturamento."
+                )
+
+                resposta_result = self.user_service.enviar_pergunta(user_id, recusa, True, db)
+                if not resposta_result["success"]:
+                    print("[Chat] Erro ao salvar resposta de recusa")
+
+                saved_id = resposta_result.get("pergunta", {}).get("id") if resposta_result["success"] else None
+                mensagem = {
+                    "id": saved_id,
+                    "id_usuario": user_id,
+                    "mensagem": recusa,
+                    "ia": True,
+                    "envio": "agora"
+                }
+                return {
+                    "success": True,
+                    "mensagem": mensagem
+                }
             if not analise.get("focus"):
                 analise["focus"] = ["estoque", "faturamento"]  # Fallback para ambos se foco vazio
 
