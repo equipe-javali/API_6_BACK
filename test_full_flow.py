@@ -128,7 +128,10 @@ def testar_perguntas_factuais():
         "Qual é a data dos registros mais antigos na tabela 'faturamento'?",
         "Qual produto tem maior es_totalestoque na tabela 'estoque'?",
         "Informe o nome de todos os produtos existentes na tabela 'faturamento'.",
-        "Quais os diferentes SKUs na tabela 'estoque'?"
+        "Quais os diferentes SKUs na tabela 'estoque'?",
+        "Que dia é hoje?",
+        "Qual a sua idade?"
+        "O que posso comer hoje?"
     ]
     
     return perguntas_teste
