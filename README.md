@@ -40,6 +40,9 @@ Consulta o status de recebimento de boletim de um usuário.
 ## PUT - `/users/{id}/status`
 Atualiza o status de recebimento de boletim.
 
+## PUT - `/users/{id}/profile`
+Atualiza os dados do perfil do usuário (email, senha, etc.). O usuário só pode atualizar seu próprio perfil.
+
 ## DELETE - `/users/{id}`
 Deleta o usuário.
 
