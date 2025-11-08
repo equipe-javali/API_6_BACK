@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from typing import List
+from fastapi import APIRouter, Depends, HTTPException, status, Body, Path
+from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
 from db.neon_db import NeonDB, get_db
@@ -8,6 +8,7 @@ from services.user_service import UserService
 from services.mensagem_service import MensagemService
 from routes.auth import get_current_active_user
 from services.chat_service import ChatService
+from models.user import AtualizarPerfilRequest
 
 
 
@@ -197,10 +198,116 @@ def enviar_pergunta(
         print(f"[Rota enviar_pergunta] Erro ao processar: {e}")
         import traceback
         traceback.print_exc()
-        
-        # Assim o usuário não perde a pergunta
+                
         return {
             "success": True,
             "pergunta": result["pergunta"],
             "mensagem": f"Erro ao processar: {str(e)}"
         }
+
+@router.put(
+    "/{user_id}/profile",
+    response_model=UserRead,
+    status_code=status.HTTP_200_OK,
+    summary="Atualizar perfil do usuário",
+    description="Atualiza informações do perfil do usuário autenticado. O usuário só pode atualizar seu próprio perfil.",
+    responses={
+        200: {
+            "description": "Perfil atualizado com sucesso",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "id": 1,
+                        "email": "usuario@exemplo.com",
+                        "username": "usuario",
+                        "is_active": True,
+                        "recebe_boletim": True
+                    }
+                }
+            }
+        },
+        400: {
+            "description": "Requisição inválida - nenhum campo para atualizar",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Nenhum campo fornecido para atualização"}
+                }
+            }
+        },
+        403: {
+            "description": "Acesso negado - tentativa de atualizar perfil de outro usuário",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Você não tem permissão para atualizar o perfil de outro usuário"}
+                }
+            }
+        },
+        404: {
+            "description": "Usuário não encontrado",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Usuário não encontrado"}
+                }
+            }
+        }
+    },
+    tags=["usuários"]
+)
+def atualizar_perfil(
+    user_id: int = Path(..., gt=0, description="ID do usuário a ser atualizado"),
+    perfil: AtualizarPerfilRequest = Body(..., description="Dados do perfil a serem atualizados"),
+    db: NeonDB = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+) -> UserRead:
+        
+    # Validação de autorização - USUÁRIO SÓ PODE ATUALIZAR SEU PRÓPRIO PERFIL
+    if current_user.id != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Você não tem permissão para atualizar o perfil de outro usuário"
+        )
+    
+    # Obter apenas campos fornecidos (não-None)
+    dados_atualizacao = perfil.model_dump(exclude_unset=True)
+    
+    # Validar se pelo menos um campo foi fornecido
+    if not dados_atualizacao:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Nenhum campo fornecido para atualização"
+        )
+    
+    # Chamar serviço para atualizar o usuário
+    try:
+        result = user_service.atualizar_perfil(user_id, dados_atualizacao, db)
+    except ValueError as e:
+        # Captura erros de validação do serviço (ex: email duplicado)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        # Log do erro real (usar logger em produção)
+        print(f"[Rota atualizar_perfil] Erro inesperado: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Erro ao atualizar perfil"
+        )
+    
+    # Validar resultado do serviço
+    if not result.get("success", False):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=result.get("message", "Usuário não encontrado")
+        )
+    
+    # Retornar dados atualizados
+    user_atualizado = result["user"]
+    
+    return UserRead(
+        id=user_atualizado["id"],
+        email=user_atualizado["email"],
+        username=user_atualizado["username"],
+        is_active=user_atualizado.get("is_active", True),
+        recebe_boletim=user_atualizado.get("recebe_boletim", False)
+    )
