@@ -13,10 +13,14 @@ def recover_password(request: RecoveryRequest):
     Endpoint para recuperação de senha.
     Envia uma senha temporária para o e-mail do usuário.
     """
+    print(f"🚀 ROTA CHAMADA! Email recebido: {request.email}")  # ✅ ADICIONE ISSO
+    
     service = PasswordRecoveryService()
     
     try:
         success, message = service.recover(request.email)
+        
+        print(f"📊 Resultado do serviço: success={success}, message={message}")  # ✅ ADICIONE ISSO
         
         if not success:
             raise HTTPException(status_code=404, detail=message)
@@ -30,7 +34,9 @@ def recover_password(request: RecoveryRequest):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Erro ao recuperar senha: {e}")
+        print(f"❌ Erro ao recuperar senha: {e}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=500,
             detail="Erro ao processar recuperação de senha"

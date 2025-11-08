@@ -14,7 +14,7 @@ from routes.auth import router as auth_router
 from routes.user import router as user_router
 from routes.csv import router as csv_router  
 from routes.envio_relatorio import router as envio_relatorio_router, verificar_envio_semanal
-from routes.password_recovery import router as password_router  # nova rota
+from routes.password_recovery import router as password_router
 from contextlib import asynccontextmanager
 
 # Função de verificação periódica
@@ -62,7 +62,7 @@ app.include_router(auth_router)
 app.include_router(user_router)
 app.include_router(csv_router) 
 app.include_router(envio_relatorio_router)
-app.include_router(password_router)  # registra rota de recuperação
+app.include_router(password_router)
 
 
 if __name__ == "__main__":
