@@ -1,5 +1,8 @@
 from pydantic import BaseModel
+from pydantic import BaseModel, Field, EmailStr
 from datetime import datetime
+from typing import Optional
+
 
 class UserBase(BaseModel):
     email: str
@@ -46,3 +49,18 @@ class PerguntaComResposta(BaseModel):
     success: bool
     pergunta: Pergunta
     resposta: str
+
+class AtualizarPerfilRequest(BaseModel):
+    """Schema para atualização de perfil do usuário."""
+    email: Optional[EmailStr] = Field(None, description="Novo email do usuário")
+    senha: Optional[str] = Field(None, min_length=6, description="Nova senha do usuário")
+    recebe_boletim: Optional[bool] = Field(None, description="Preferência de recebimento de boletim")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "email": "novoemail@exemplo.com",
+                "senha": "nova_senha123",
+                "recebe_boletim": True
+            }
+        }

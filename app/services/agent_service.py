@@ -3,10 +3,10 @@ import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from typing import Optional, Dict, Any
 from dotenv import load_dotenv
-from app.db.neon_db import execute_query
+from db.neon_db import execute_query
 import re
 from decimal import Decimal
-from app.services.QueryAnalyzer import QueryAnalyzer
+from services.QueryAnalyzer import QueryAnalyzer
 
 load_dotenv()
 
