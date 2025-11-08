@@ -25,7 +25,7 @@ nltk==3.9.2
 numpy==2.3.3
 packaging==25.0
 pandas==2.3.2
-passlib==1.7.4
+passlib[bcrypt]
 psycopg2==2.9.10
 pyasn1==0.6.1
 pycparser==2.23
@@ -59,3 +59,4 @@ urllib3==2.5.0
 uvicorn==0.35.0
 watchfiles==1.1.0
 websockets==15.0.1
+sendgrid

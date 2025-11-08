@@ -1,3 +1,12 @@
+# Adiciona raiz do projeto e a pasta app ao sys.path
+import sys, pathlib
+_BASE_DIR = pathlib.Path(__file__).resolve().parent       # ...\API_6_BACK\app
+_ROOT_DIR = _BASE_DIR.parent                              # ...\API_6_BACK
+if str(_ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(_ROOT_DIR))
+if str(_BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(_BASE_DIR))
+
 import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -5,6 +14,7 @@ from routes.auth import router as auth_router
 from routes.user import router as user_router
 from routes.csv import router as csv_router  
 from routes.envio_relatorio import router as envio_relatorio_router, verificar_envio_semanal
+from routes.password_recovery import router as password_router
 from contextlib import asynccontextmanager
 
 # Função de verificação periódica
@@ -52,8 +62,13 @@ app.include_router(auth_router)
 app.include_router(user_router)
 app.include_router(csv_router) 
 app.include_router(envio_relatorio_router)
+app.include_router(password_router)
 
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    print("Iniciando servidor FastAPI sem reload...")
+    try:
+        uvicorn.run(app, host="127.0.0.1", port=8000, reload=False, log_level="info")
+    except Exception as e:
+        print(f"Falha ao iniciar uvicorn: {e}")
