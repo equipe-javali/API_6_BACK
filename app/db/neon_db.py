@@ -1,8 +1,16 @@
 import psycopg2
+import os
+from dotenv import load_dotenv
+
+load_dotenv()  # garante que o .env seja carregado
 
 class NeonDB:
     def __init__(self):
-        self.conn = psycopg2.connect("postgresql://neondb_owner:npg_mR2nM7oqVNTr@ep-plain-queen-ad3ji27w-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require")
+        # pega a URL do banco do .env
+        db_url = os.getenv("DATABASE_URL")
+        if not db_url:
+            raise ValueError("DATABASE_URL não está definido no .env")
+        self.conn = psycopg2.connect(db_url)
         self.cursor = self.conn.cursor()
 
     def __enter__(self):
