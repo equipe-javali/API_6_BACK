@@ -1,5 +1,5 @@
 from typing import Dict, List, Any
-from db.neon_db import NeonDB  
+from db.neon_db import NeonDB
 
 class ContextService:
     def __init__(self):
