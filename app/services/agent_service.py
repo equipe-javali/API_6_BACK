@@ -7,6 +7,7 @@ from db.neon_db import execute_query
 import re
 from decimal import Decimal
 from services.QueryAnalyzer import QueryAnalyzer
+from google import genai
 
 load_dotenv()
 
@@ -22,23 +23,6 @@ class AgentService:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print("AgentService using device:", self.device)
 
-        HG_TOKEN = os.getenv("HG_TOKEN")
-        model_name = os.getenv("HF_MODEL", "google/gemma-3-1b-pt")
-        if self.device.type == "cuda":
-            self.model = AutoModelForCausalLM.from_pretrained(
-                model_name,
-                token=HG_TOKEN,
-                device_map="auto",
-                dtype=torch.bfloat16,
-            )
-        else:
-            self.model = AutoModelForCausalLM.from_pretrained(
-                model_name,
-                low_cpu_mem_usage=True,
-            )
-            self.model.to(self.device, dtype=torch.float32)
-
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self._cache = {}
         self._cache_max_size = 100
         self.query_analyzer = QueryAnalyzer()
@@ -346,22 +330,14 @@ INSTRUÇÕES:
 
 Query SQL:"""
         
-        try:
-            input_ids = self.tokenizer(prompt, return_tensors="pt", truncation=True, max_length=1024)
-            input_ids = {k: v.to(self.device) for k, v in input_ids.items()}
+        try:   
+            client = genai.Client(api_key=os.getenv("GEMMA_API_KEY"))
+            outputs = client.models.generate_content(
+                model="gemma-3-27b-it",
+                contents=prompt,
+            )
             
-            with torch.no_grad():
-                outputs = self.model.generate(
-                    **input_ids,
-                    max_new_tokens=150,
-                    temperature=0.1,
-                    do_sample=False,
-                    repetition_penalty=1.2,
-                    pad_token_id=self.tokenizer.eos_token_id,
-                    eos_token_id=self.tokenizer.eos_token_id
-                )
-            
-            response = self.tokenizer.decode(outputs[0][input_ids['input_ids'].shape[1]:], skip_special_tokens=True)
+            response = outputs.text
             sql_query = response.strip()
             
             # Limpar resposta - remover tags HTML e texto extra
@@ -486,22 +462,13 @@ INSTRUÇÕES:
 Resposta:"""
 
         try:
-            input_ids = self.tokenizer(prompt, return_tensors="pt", truncation=True, max_length=1024)
-            input_ids = {k: v.to(self.device) for k, v in input_ids.items()}
-
-            with torch.no_grad():
-                outputs = self.model.generate(
-                    **input_ids,
-                    max_new_tokens=200,
-                    temperature=0.3,
-                    do_sample=True,
-                    top_p=0.9,
-                    repetition_penalty=1.1,
-                    pad_token_id=self.tokenizer.eos_token_id,
-                    eos_token_id=self.tokenizer.eos_token_id
-                )
-
-            response = self.tokenizer.decode(outputs[0][input_ids['input_ids'].shape[1]:], skip_special_tokens=True)
+            client = genai.Client(api_key=os.getenv("GEMMA_API_KEY"))
+            outputs = client.models.generate_content(
+                model="gemma-3-27b-it",
+                contents=prompt,
+            )
+            
+            response = outputs.text
             response = response.strip()
 
             # Limpar resposta
