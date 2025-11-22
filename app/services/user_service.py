@@ -1,6 +1,8 @@
 from db.neon_db import NeonDB  
 from services.auth_service import get_password_hash  
 from typing import List, Dict, Any, Optional
+from services.auth_service import get_password_hash
+import traceback
 
 class UserService:
     """Serviço para gerenciar usuários"""
@@ -183,7 +185,134 @@ class UserService:
                 }
             }
 
-    
+    def enviar_pergunta(self, id_usuario: int, mensagem: str, ia: bool, db: NeonDB) -> Dict[str, Any]:
+        """
+        Persiste uma pergunta no banco e retorna o registro criado.
+        """
+        try:
+            try:
+                test = db.fetchone("SELECT 1", None)
+                print(f"[UserService.enviar_pergunta] Test DB SELECT 1 retornou: {test}")
+            except Exception as e_test:
+                print(f"[UserService.enviar_pergunta] Falha no teste DB: {e_test}")
+
+            print("[UserService.enviar_pergunta] Tabela 'mensagem' assumida existente; prosseguindo com INSERT")
+            print("[UserService.enviar_pergunta] Executando INSERT na tabela mensagem (sem id)...")
+            
+            # Trunca a mensagem para 255 caracteres para evitar erro de banco
+            mensagem_truncada = mensagem[:255] if len(mensagem) > 255 else mensagem
+            
+            row = db.fetchone(
+                "INSERT INTO mensagem (id_usuario, mensagem, ia, envio) VALUES (%s, %s, %s, NOW()) RETURNING id, envio",
+                [id_usuario, mensagem_truncada, ia]
+            )
+            print(f"[UserService.enviar_pergunta] Resultado do INSERT (row): {row}")
+            db.commit()
+
+            if not row:
+                print("[UserService.enviar_pergunta] INSERT não retornou row")
+                return {"success": False, "message": "Falha ao inserir pergunta"}
+
+            print(f"[UserService.enviar_pergunta] Pergunta salva com id={row[0]}, envio={row[1]}")
+            return {
+                "success": True,
+                "pergunta": {
+                    "id": row[0],
+                    "id_usuario": id_usuario,
+                    "mensagem": mensagem_truncada,
+                    "ia": ia,
+                    "envio": row[1]
+                }
+            }
+        except Exception as e:
+            # Log completo com traceback e retorna erro
+            print(f"[UserService.enviar_pergunta] Erro ao salvar pergunta: {e}")
+            traceback.print_exc()
+            return {"success": False, "message": str(e)}
+        
+    def atualizar_perfil(self, user_id: int, dados: Dict[str, Any], db: NeonDB) -> Dict[str, Any]:
+        """
+        Atualiza o perfil do usuário no banco de dados.
+        
+        Args:
+            user_id: ID do usuário
+            dados: Dicionário com campos a serem atualizados
+            db: Instância do banco de dados
+        
+        Returns:
+            Dicionário com resultado da operação
+        
+        Raises:
+            ValueError: Se email já existe para outro usuário
+        """
+        try:
+            # Verificar se usuário existe
+            usuario = db.fetchone("SELECT id, email, recebe_boletim FROM usuario WHERE id = %s", [user_id])
+            
+            if not usuario:
+                return {"success": False, "message": "Usuário não encontrado"}
+            
+            # Validar unicidade de email (se fornecido)
+            if "email" in dados:
+                email_existe = db.fetchone(
+                    "SELECT id FROM usuario WHERE email = %s AND id != %s", 
+                    [dados["email"], user_id]
+                )
+                if email_existe:
+                    raise ValueError("Email já cadastrado para outro usuário")
+            
+            # Se a senha foi fornecida, fazer hash
+            if "senha" in dados:
+                from services.auth_service import get_password_hash
+                dados["senha"] = get_password_hash(dados["senha"])
+            
+            # Construir query dinâmica de update
+            campos_update = []
+            valores = []
+            
+            for campo, valor in dados.items():
+                campos_update.append(f"{campo} = %s")
+                valores.append(valor)
+            
+            # Adicionar WHERE clause
+            valores.append(user_id)
+            
+            update_query = f"""
+                UPDATE usuario 
+                SET {', '.join(campos_update)}
+                WHERE id = %s
+                RETURNING id, email, recebe_boletim
+            """
+            
+            resultado = db.fetchone(update_query, valores)
+            db.commit()
+            
+            if resultado:
+                username = resultado[1].split('@')[0]  # Extrai username do email
+                return {
+                    "success": True,
+                    "user": {
+                        "id": resultado[0],
+                        "email": resultado[1],
+                        "username": username,
+                        "is_active": True,
+                        "recebe_boletim": resultado[2]
+                    }
+                }
+            
+            return {"success": False, "message": "Falha ao atualizar usuário"}
+            
+        except ValueError:
+            # Re-raise para tratamento no endpoint
+            raise
+        except Exception as e:
+            # Log do erro em produção
+            print(f"[UserService.atualizar_perfil] Erro: {e}")
+            traceback.print_exc()
+            return {"success": False, "message": f"Erro ao atualizar perfil: {str(e)}"}
+
+
+
     
     
 

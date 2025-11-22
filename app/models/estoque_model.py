@@ -1,6 +1,9 @@
+import datetime
+
+
 class EstoqueModel:
     def __init__(self,
-            data: str,
+            data: datetime,
             cod_cliente: int,
             es_centro: str,
             tipo_material: str,

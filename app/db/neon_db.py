@@ -1,8 +1,16 @@
 import psycopg2
+import os
+from dotenv import load_dotenv
+
+load_dotenv()  # garante que o .env seja carregado
 
 class NeonDB:
     def __init__(self):
-        self.conn = psycopg2.connect("postgresql://neondb_owner:npg_mR2nM7oqVNTr@ep-plain-queen-ad3ji27w-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require")
+        # pega a URL do banco do .env
+        db_url = os.getenv("DATABASE_URL")
+        if not db_url:
+            raise ValueError("DATABASE_URL não está definido no .env")
+        self.conn = psycopg2.connect(db_url)
         self.cursor = self.conn.cursor()
 
     def __enter__(self):
@@ -51,4 +59,35 @@ def get_db():
         yield db
     finally:
         db.__exit__(None, None, None)
+
+def execute_query(query: str):
+    """Executa uma query SQL e retorna os resultados formatados"""
+    with NeonDB() as db:
+        try:
+            # Se for SELECT, retornar dados formatados
+            if query.strip().upper().startswith('SELECT'):
+                cursor = db._NeonDB__cursor()
+                cursor.execute(query)
+                
+                # Obter nomes das colunas
+                columns = [desc[0] for desc in cursor.description] if cursor.description else []
+                
+                # Obter resultados
+                results = cursor.fetchall()
+                
+                # Converter para lista de dicionários
+                formatted_results = []
+                for row in results:
+                    row_dict = dict(zip(columns, row))
+                    formatted_results.append(row_dict)
+                
+                return formatted_results
+            else:
+                # Para INSERT, UPDATE, DELETE
+                db.execute(query)
+                db.commit()
+                return {"success": True}
+                
+        except Exception as e:
+            raise Exception(f"Erro ao executar query: {str(e)}")
 
