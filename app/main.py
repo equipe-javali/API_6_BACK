@@ -48,7 +48,12 @@ app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    origins = [
+    "https://task-33.d14pqdy1dlnco7.amplifyapp.com",  
+    "http://localhost:8080",  # Testes locais Flutter
+    
+],   
+    allow_origin_regex='https://.*\.d14pqdy1dlnco7\.amplifyapp\.com',
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
