@@ -3,7 +3,7 @@ from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
 from db.neon_db import NeonDB, get_db
-from models.user import User, UserRead, StatusBoletimRequest, PerguntaCreate
+from models.user import User, UserRead, StatusBoletimRequest, AdminUserRequest, PerguntaCreate
 from services.user_service import UserService
 from services.mensagem_service import MensagemService
 from routes.auth import get_current_active_user
@@ -82,6 +82,24 @@ def update_status(
 ):
     """Atualiza o status de recebimento de boletim (requer autenticação)"""
     result = user_service.alterar_status_boletim(user_id, request.recebe_boletim, current_user.id, db)
+    
+    if not result["success"]:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=result["message"]
+        )
+        
+    return result
+
+@router.put("/{user_id}/admin")
+def update_admin(
+    user_id: int,
+    request: AdminUserRequest,
+    db: NeonDB = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Atualiza o status de admin do usuário (requer autenticação)"""
+    result = user_service.alterar_status_admin(user_id, request.recebe_boletim, current_user.id, db)
     
     if not result["success"]:
         raise HTTPException(
