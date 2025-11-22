@@ -9,6 +9,7 @@ colorama==0.4.6
 cryptography==46.0.1
 dotenv==0.9.9
 ecdsa==0.19.1
+email-validator
 fastapi==0.116.1
 filelock==3.19.1
 fsspec==2025.9.0
