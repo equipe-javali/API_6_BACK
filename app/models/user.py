@@ -27,3 +27,6 @@ class UserRead(BaseModel):
         
 class StatusBoletimRequest(BaseModel):
     recebe_boletim: bool
+
+class AdminUserRequest(BaseModel):
+    admin: bool
