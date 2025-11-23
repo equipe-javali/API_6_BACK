@@ -25,6 +25,7 @@ class UserRead(BaseModel):
     username: str
     is_active: bool
     recebe_boletim: bool
+    admin: bool
     
     class Config:
         from_attributes = True
@@ -32,6 +33,8 @@ class UserRead(BaseModel):
 class StatusBoletimRequest(BaseModel):
     recebe_boletim: bool
 
+class AdminUserRequest(BaseModel):
+    admin: bool
 
 # Modelos para perguntas (chat)
 class PerguntaCreate(BaseModel):

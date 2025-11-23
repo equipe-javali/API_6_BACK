@@ -1,6 +1,6 @@
 from db.neon_db import NeonDB  
 from services.auth_service import get_password_hash  
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from services.auth_service import get_password_hash
 import traceback
 
@@ -25,7 +25,7 @@ class UserService:
     def get_users(self, skip: int, limit: int, db: NeonDB) -> List[Dict[str, Any]]:
         """Lista usuários com paginação"""
         users = db.fetchall(
-            "SELECT id, email, recebe_boletim FROM usuario ORDER BY id OFFSET %s LIMIT %s",
+            "SELECT id, email, recebe_boletim, admin FROM usuario ORDER BY id OFFSET %s LIMIT %s",
             [skip, limit]
         )
                
@@ -34,7 +34,8 @@ class UserService:
                 "id": user[0],
                 "email": user[1], 
                 "username": user[1].split('@')[0],
-                "recebe_boletim": user[2]
+                "recebe_boletim": user[2],
+                "admin": bool(user[3])
             }
             for user in users
         ]
@@ -74,6 +75,41 @@ class UserService:
                 "recebe_boletim_novo": recebe_boletim
             }
         }
+    
+    def alterar_status_admin(self, user_id: int, admin: bool, admin_user_id: int, db: NeonDB) -> Dict[str, Any]:
+        """
+        Altera o status de recebimento de boletim de um usuário.
+        Apenas administradores podem usar esta função.
+        """
+        # Verificar se o usuário administrador existe
+        admin_result = db.fetchone("SELECT id FROM usuario WHERE id = %s", [admin_user_id])
+        if not admin_result:
+            return {
+                "success": False,
+                "message": "Usuário administrador não encontrado"
+            }
+        
+        # Verificar se o usuário alvo existe
+        user_result = db.fetchone("SELECT id, email, admin FROM usuario WHERE id = %s", [user_id])
+        if not user_result:
+            return {
+                "success": False,
+                "message": "Usuário não encontrado"
+            }
+        
+        # Atualizar o status do boletim
+        db.execute("UPDATE usuario SET admin = %s WHERE id = %s", [admin, user_id])
+        db.commit()
+
+        return {
+            "success": True,
+            "message": f"Status de admin alterado com sucesso para {admin}",
+            "usuario": {
+                "id": user_result[0],
+                "email": user_result[1],
+                "admin": admin
+            }
+        }
 
     def get_status_boletim(self, user_id: int, db: NeonDB) -> Dict[str, Any]:
         """
@@ -91,7 +127,8 @@ class UserService:
             "usuario": {
                 "id": result[0],
                 "email": result[1],
-                "recebe_boletim": result[2]
+                "recebe_boletim": result[2],
+                "admin": result[3]
             }
             
         }
@@ -121,7 +158,7 @@ class UserService:
             }
         }
     
-    def criar_user(self, email: str, senha: str, recebe_boletim: bool = True) -> dict:
+    def criar_user(self, email: str, senha: str, recebe_boletim: bool = True, admin: bool = False) -> dict:
         """
         Cria um novo usuário no sistema, salvando a senha criptografada.
         """
@@ -130,11 +167,11 @@ class UserService:
             if existing:
                 return {"success": False, "message": "Esse e-mail já foi cadastrado!"}
             
-            senha_hash = get_password_hash(senha)  
-            
+            senha_hash = get_password_hash(senha)
+
             result = db.fetchone(
-                "INSERT INTO usuario (email, senha, recebe_boletim) VALUES (%s, %s, %s) RETURNING id",
-                [email, senha_hash, recebe_boletim]
+                "INSERT INTO usuario (email, senha, recebe_boletim, admin) VALUES (%s, %s, %s, %s) RETURNING id",
+                [email, senha_hash, recebe_boletim, admin]
             )
             db.commit()
             return {
@@ -143,7 +180,8 @@ class UserService:
                 "usuario": {
                     "id": result[0],
                     "email": email,
-                    "recebe_boletim": recebe_boletim
+                    "recebe_boletim": recebe_boletim,
+                    "admin": admin
                 }
             }
 
