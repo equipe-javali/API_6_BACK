@@ -1,6 +1,6 @@
 from db.neon_db import NeonDB  
 from services.auth_service import get_password_hash  
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from services.auth_service import get_password_hash
 import traceback
 
