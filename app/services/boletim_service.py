@@ -1,8 +1,6 @@
 import re
 import random
 from datetime import datetime, timedelta
-from transformers import AutoTokenizer, AutoModelForCausalLM
-import torch
 from google import genai
 
 from models.dados_boletim_model import DadosBoletimModel
@@ -13,31 +11,9 @@ class BoletimService:
     def __init__(self):
         # Definindo seed fixa para reprodutibilidade
         seed_value = 42
-        random.seed(seed_value)
-        torch.manual_seed(seed_value)
-        if torch.cuda.is_available():
-            torch.cuda.manual_seed_all(seed_value)
-            
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        print("BoletimService using device:", self.device)
-
-        if self.device.type == "cuda":
-            self.model = AutoModelForCausalLM.from_pretrained(
-                "google/gemma-3-1b-pt",
-                device_map="auto",
-                dtype=torch.bfloat16,
-            )
-        else:
-            self.model = AutoModelForCausalLM.from_pretrained(
-                "google/gemma-3-1b-pt",
-                low_cpu_mem_usage=True,
-            )
-            self.model.to(self.device, dtype=torch.float32)
-            
-        # Ativando modo de avaliação para desativar dropout e garantir consistência
-        self.model.eval()
-        self.tokenizer = AutoTokenizer.from_pretrained("google/gemma-3-1b-pt")
-
+        random.seed(seed_value)    
+        print("BoletimService usando API de IA Gemma da GenAI")
+        
     def _gerar_periodo_boletim(self) -> tuple[str, str]:
         """Gera período do boletim a partir do banco"""
         data_inicio, data_fim = _ler_periodo_banco()
