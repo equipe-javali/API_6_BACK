@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Body, Path
-from typing import List, Optional
+from typing import List
 from pydantic import BaseModel
-from datetime import datetime
 from db.neon_db import NeonDB, get_db
 from models.user import User, UserRead, StatusBoletimRequest, AdminUserRequest, PerguntaCreate
 from services.user_service import UserService
@@ -27,6 +26,7 @@ class CriarUsuario(BaseModel):
     email: str
     senha: str
     recebe_boletim: bool = True
+    admin: bool = True
 
 @router.get("/", response_model=List[UserRead])
 def read_users(
@@ -44,8 +44,9 @@ def read_users(
                 id=user["id"],
                 email=user["email"],
                 username=user["username"],
+                admin=user.get("admin", False),
+                recebe_boletim=user.get("recebe_boletim", False),
                 is_active=True,
-                recebe_boletim=user.get("recebe_boletim", False)
             )
             for user in users
         ]
@@ -99,7 +100,7 @@ def update_admin(
     current_user: User = Depends(get_current_active_user)
 ):
     """Atualiza o status de admin do usuário (requer autenticação)"""
-    result = user_service.alterar_status_admin(user_id, request.recebe_boletim, current_user.id, db)
+    result = user_service.alterar_status_admin(user_id, request.admin, current_user.id, db)
     
     if not result["success"]:
         raise HTTPException(
@@ -132,7 +133,8 @@ def criar_usuario(request: CriarUsuario):
         return user_service.criar_user(
             request.email,
             request.senha,
-            request.recebe_boletim
+            request.recebe_boletim,
+            request.admin
         )
     except Exception as e:
         print(f"[Rota /usuario] Erro: {e}")

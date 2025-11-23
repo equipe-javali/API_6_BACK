@@ -25,6 +25,7 @@ class UserRead(BaseModel):
     username: str
     is_active: bool
     recebe_boletim: bool
+    admin: bool
     
     class Config:
         from_attributes = True
