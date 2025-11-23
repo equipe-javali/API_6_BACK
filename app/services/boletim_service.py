@@ -3,6 +3,7 @@ import random
 from datetime import datetime, timedelta
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch
+from google import genai
 
 from models.dados_boletim_model import DadosBoletimModel
 from models.envio_semanal_model import _ler_periodo_banco
@@ -131,47 +132,19 @@ Risco SKU_1: {dados.risco_desabastecimento_sku1}
 
 Análise:"""
 
-        try:
-            # Usando torch.no_grad() para garantir que não haja atualizações de gradientes
-            with torch.no_grad():
-                input_ids = self.tokenizer(prompt, return_tensors="pt")
-                input_ids = {k: v.to(self.device) for k, v in input_ids.items()}
-
-                # Parâmetros determinísticos para resultados consistentes
-                outputs = self.model.generate(
-                    **input_ids, 
-                    max_new_tokens=250,
-                    temperature=0,  # temperatura zero para determinismo
-                    do_sample=False,  # desativa amostragem aleatória
-                    repetition_penalty=1.4,
-                    no_repeat_ngram_size=4,
-                    pad_token_id=self.tokenizer.eos_token_id,
-                    seed=42  # seed fixa para consistência
-                )
-            output_str = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-
-            # Extrai apenas a parte após "Análise:"
-            texto_ia = re.split(r'Análise:\s*', output_str, flags=re.IGNORECASE)
-            if len(texto_ia) > 1:
-                texto_ia = texto_ia[1].strip()
-            else:
-                texto_ia = output_str.strip()
-            
-            # Limpeza agressiva: remove URLs, prompts repetidos e lixo
-            texto_ia = re.sub(r'https?://[^\s]+', '', texto_ia)  # Remove URLs
-            texto_ia = re.sub(r'www\.[^\s]+', '', texto_ia)  # Remove www links
-            texto_ia = re.sub(r'docs\.google\.[^\s]+', '', texto_ia)  # Remove Google Docs links
-            texto_ia = re.sub(r'(Analise os|Escreva|Você é).*?(?=\n|$)', '', texto_ia, flags=re.IGNORECASE)
-            texto_ia = re.sub(r'<[^>]+>', '', texto_ia)  # Remove tags HTML
-            texto_ia = re.sub(r'\s+', ' ', texto_ia)  # Normaliza espaços
-            texto_ia = texto_ia.strip()
-            
-            # Se o texto da IA for muito curto ou inválido, usa análise baseada em regras
-            if len(texto_ia) < 50 or 'http' in texto_ia.lower() or 'google' in texto_ia.lower():
-                print("⚠️ IA gerou output inválido, usando análise baseada em regras")
+        try:            
+            client = genai.Client(api_key=os.getenv("GEMMA_API_KEY"))
+            outputs = client.models.generate_content(
+                model="gemma-3-27b-it",
+                contents=prompt,
+            )
+            texto_ia = outputs.text.strip()
+            # Limpeza opcional do texto
+            texto_ia = re.sub(r'<[^>]+>', '', texto_ia)
+            texto_ia = re.sub(r'\s+', ' ', texto_ia).strip()
+            if len(texto_ia) < 50:
+                print("⚠️ IA gerou output curto, usando análise baseada em regras")
                 texto_ia = self._gerar_analise_baseada_regras(dados)
-            
-            # Combina dados estruturados + análise
             boletim_final = f"""{relatorio_estruturado}
 
 📝 ANÁLISE E RECOMENDAÇÕES
