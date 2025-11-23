@@ -15,7 +15,6 @@ BACK-END
     <a href="#estrutura">Estrutura</a>  |
     <a href="#requisitos">Requisitos</a> |
     <a href="#execucao">Execução</a> |
-    <!-- <a href="#teste">Teste</a> | -->
     <a href="#estrategia">Estratégia de Branches</a>
 </p>
 
@@ -92,12 +91,6 @@ python .\app\main.py
 ```
 
 → [Voltar ao topo](#topo)
-
-<!-- <span id="teste">
-
-## 🧪 Instruções para Testar
-
-→ [Voltar ao topo](#topo) -->
 
 <span id="estrategia">
 
