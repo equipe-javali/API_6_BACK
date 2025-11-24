@@ -15,6 +15,7 @@ class User(UserBase):
     id: int
     is_active: bool
     hashed_password: str
+    admin: bool
 
     class Config:
         from_attributes = True 
