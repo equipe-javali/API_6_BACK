@@ -28,6 +28,17 @@ class CriarUsuario(BaseModel):
     recebe_boletim: bool = True
     admin: bool = True
 
+@router.get("/me", response_model=UserRead)
+async def read_users_me(current_user: User = Depends(get_current_active_user)):
+    return UserRead(
+        id=current_user.id,
+        email=current_user.email,
+        username=current_user.username,
+        is_active=current_user.is_active,
+        admin=current_user.admin,
+        recebe_boletim=getattr(current_user, "recebe_boletim", False)
+    )
+
 @router.get("/", response_model=List[UserRead])
 def read_users(
     skip: int = 0, 
@@ -329,5 +340,6 @@ def atualizar_perfil(
         email=user_atualizado["email"],
         username=user_atualizado["username"],
         is_active=user_atualizado.get("is_active", True),
-        recebe_boletim=user_atualizado.get("recebe_boletim", False)
+        recebe_boletim=user_atualizado.get("recebe_boletim", False),
+        admin=user_atualizado.get("admin", False)
     )

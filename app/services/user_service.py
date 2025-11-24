@@ -281,7 +281,7 @@ class UserService:
                 UPDATE usuario 
                 SET {', '.join(campos_update)}
                 WHERE id = %s
-                RETURNING id, email, recebe_boletim
+                RETURNING id, email, recebe_boletim, admin
             """
             
             resultado = db.fetchone(update_query, valores)
@@ -296,7 +296,8 @@ class UserService:
                         "email": resultado[1],
                         "username": username,
                         "is_active": True,
-                        "recebe_boletim": resultado[2]
+                        "recebe_boletim": resultado[2],
+                        "admin": bool(resultado[3])
                     }
                 }
             

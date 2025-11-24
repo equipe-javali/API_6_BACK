@@ -37,7 +37,7 @@ def get_user(email: str, db: NeonDB = None) -> Optional[User]:
     
     try:
         
-        user_row = db.fetchone("SELECT id, email, senha, recebe_boletim FROM usuario WHERE email = %s", [email])
+        user_row = db.fetchone("SELECT id, email, senha, recebe_boletim, admin FROM usuario WHERE email = %s", [email])
         if not user_row:
             return None
         
@@ -51,7 +51,8 @@ def get_user(email: str, db: NeonDB = None) -> Optional[User]:
             "email": user_row[1],
             "username": username,  
             "hashed_password": user_row[2],  
-            "is_active": True  
+            "is_active": True,
+            "admin": user_row[4],
         }
         return User(**user_dict)
     finally:
